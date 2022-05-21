@@ -1,0 +1,6 @@
+endpoints:
+  '/tickets':
+    GET:
+      backends: ['https://app:8181/tickets']
+      processors: ['plugins.tickets.flatten']
+      template: tickets.html

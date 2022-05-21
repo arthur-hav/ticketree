@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.0.0/d3.min.js" charset="utf-8"></script>
+<body><div id="graph" style=position:relative"></div></body>
+
+<script>
+var width = 960
+var v_step = 29
+var height = (v_step + 1) * 3
+var overlap = 3
+function chart(d3,gen_data,step,margin,color,y,xAxis) {
+
+    d3.select("#graph")
+          .selectAll("canvas")
+          .data(gen_data)
+          .enter()
+              .append("canvas")
+              .style("position", "absolute")
+              .property("width", width)
+              .property("height", v_step)
+              .style("top", (d, i) => `${i * (v_step + 1) + margin.top}px`)
+              .property("context", function() { return this.getContext("2d"); })
+              .each(horizon)
+    // const canvas = d3.select("#graph canvas")
+    const svg = d3.select("#graph")
+        .append("svg")
+    svg.style("position", "relative")
+        .style("font", "10px sans-serif")
+        .style("width", width + "px")
+        .style("height", height + "px");
+
+  const gX = svg.append("g");
+  svg.append("g")
+    .selectAll("text")
+    .data(gen_data)
+    .join("text")
+      .attr("x", 4)
+      .attr("y", (d, i) => (i + 0.5) * (v_step))
+      .attr("dy", "0.35em")
+      .text((d, i) => i);
+  const rule = svg.append("line")
+      .attr("stroke", "#000")
+      .attr("y1", 0)
+      .attr("y2", height)
+      .attr("x1", 0.5)
+      .attr("x2", 0.5);
+
+  svg.on("mousemove touchmove", (event) => {
+    const x = d3.pointer(event, svg.node())[0] + 0.5;
+    rule.attr("x1", x).attr("x2", x);
+  });
+
+   return function(data){
+          d3.select("#graph")
+          .selectAll("canvas").data(data).each(horizon);
+      gX.call(xAxis);
+  };
+}
+function color(i){
+    if (i <= 0){
+         return d3["schemeBlues"][Math.max(4, overlap + 1)][-i + 1]
+    }
+    return d3["schemeGreens"][Math.max(4, overlap + 1)][i]
+}
+function horizon(d) {
+
+  const {context} = this;
+  const k = d.length * 6
+  if (k < width) context.drawImage(this, k, 0, width - k, v_step, 0, 0, width - k, v_step);
+  context.fillStyle = "#fff";
+  context.fillRect(width - k, 0, k, v_step);
+  for (let i = 1; i <= overlap; i++) {
+     paint(context, i, d, k)
+  }
+  for (let i = 0; i >= -overlap; i--) {
+     paint(context, i, d, k)
+  }
+}
+
+function paint(context, i, d, k){
+
+    context.restore();
+    context.save();
+    context.translate(width - k, i * v_step);
+    context.fillStyle = color(i);
+    for (let j = 0; j < d.length; ++j) {
+      context.fillRect(j * 6, y(d[j]), 4, -y(d[j]));
+    }
+    context.restore();
+}
+
+margin = {top: 8, right: 10, bottom: 0, left: 10}
+v_step = 29
+
+x = d3.scaleTime().range([0, width])
+
+y = d3.scaleLinear()
+    .domain([-1, 1])
+    .rangeRound([overlap * v_step, -overlap * v_step])
+function xAxis(g){return(g
+    .attr("transform", `translate(0,${margin.top})`)
+    .call(d3.axisTop(x).ticks(width / 80).tickSizeOuter(0))
+    .call(g => g.selectAll(".tick").filter(d => x(d) < margin.left || x(d) >= width - margin.right).remove())
+    .call(g => g.select(".domain").remove())
+)};
+function gen_data(){
+  const n = 3, m = 964 / 6;
+  var new_data = new Array(n);
+  for (let i = 0; i < n; ++i) {
+    const d = new_data[i] = new Float64Array(m);
+    for (let j = 0, v = 0; j < m; ++j) {
+      d[j] = v = walk(v);
+    }
+  }
+  return new_data;
+}
+function walk(v) {
+  return Math.max(-1, Math.min(1, v + (Math.random() - 0.5) * 0.05));
+}
+
+var step = 100
+var batch_size = 20
+var sock;
+var ch = chart(d3,gen_data,step,margin,color,y,xAxis);
+// draw graph
+var metrics = ["foo"];
+var ready = false;
+var t = 0
+function json_ws(path, on_msg) {
+    if (!("WebSocket" in window)) {
+        alert("Use a browser supporting websockets");
+    }
+
+    sock = new WebSocket("ws://" + location.host + path);
+    sock.onmessage = function(msg) {
+        var data;
+        try {
+            data = JSON.parse(msg.data);
+        }
+        catch (SyntaxError) {
+            console.log("Invalid data: " + msg.data);
+            return;
+        }
+        if (data)
+            on_msg(data);
+    }
+    sock.onopen = function(msg) {
+        ready = true;
+    }
+
+    window.onbeforeunload = function() {
+        sock.onclose = function() {};
+        sock.close();
+        }
+}
+var values = [];
+json_ws("/api/ws", function(data){
+    var frame = []
+    for (var i = 0; i < data.data.length; i++){
+        values.push(data.data[i])
+    }
+})
+
+function up(){
+    if (values.length > 0){
+        var point = values.shift()
+        ch([[point[0]], [point[1]], [point[2]]])
+    }
+}
+setInterval(up, step)
+
+</script>

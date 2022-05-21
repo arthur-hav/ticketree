@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Ticketree</title>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0-beta1/dist/js/bootstrap.bundle.min.js"
+            integrity="sha384-pprn3073KE6tl6bjs2QrFaJGz5/SUsLqktiwsUTF55Jfv3qYSDhgCecCxMW52nD2"
+            crossorigin="anonymous"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0-beta1/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-0evHe/X+R7YkIZDRvuzKMRqM+OrBnVFBL6DOitfPri4tjfHxaWutUpFmBp4vmVor" crossorigin="anonymous">
+    <link href="/static/style.css" rel="stylesheet"/>
+    <link href="/static/login.css" rel="stylesheet"/>
+</head>
+<body>
+<main class="form-signin w-100 m-auto">
+    <form method="post">
+        <input type="text" id="form-username" name="username" class="form-control paper" placeholder="Your name"/>
+        <input type="password" id="form-password" name="password" class="form-control paper" placeholder="Password"/>
+        <input type="submit" value="Login" class="w-100 btn btn-lg btn-success">
+        <input type="hidden" name="csrf" value="{{ csrf }}"/>
+    </form>
+</main>
+
+</body>
+</html>
