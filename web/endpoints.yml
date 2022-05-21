@@ -2,5 +2,5 @@ endpoints:
   '/tickets':
     GET:
       backends: ['https://app:8181/tickets']
-      processors: ['plugins.tickets.flatten']
+      processors: ['web.plugins.tickets']
       template: tickets.html

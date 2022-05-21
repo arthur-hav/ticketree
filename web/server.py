@@ -3,14 +3,20 @@ import requests
 import yaml
 from os import urandom
 import base64
+import importlib
 
 app = Quart(__name__)
 verify_cert = False
-routes = yaml.safe_load(open('endpoints.yml'))
+routes = yaml.safe_load(open('web/endpoints.yml'))
+
 
 for route, methods_desc in routes['endpoints'].items():
+    for description in methods_desc.values():
+        for i, processor in enumerate(description['processors']):
+            description['processors'][i] = importlib.import_module(processor)
+
     @app.route(route, methods=list(methods_desc.keys()))
-    def endpoint():
+    async def endpoint():
         jwt = request.cookies['auth']
         infos = {}
         for method, description in methods_desc.items():
@@ -20,10 +26,10 @@ for route, methods_desc in routes['endpoints'].items():
                                           headers={'Authorization': f'Bearer {jwt}'},
                                           verify=verify_cert)
                     infos.update(rq.json())
-                for processor in description['processors']:
-                    infos = processor(infos)
+                for module in description['processors']:
+                    infos = module.process(infos)
                 if 'template' in description:
-                    return render_template(description['template'], infos)
+                    return await render_template(description['template'], **infos)
                 return infos
 
 

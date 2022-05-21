@@ -1,4 +1,4 @@
-def flatten(tickets_json):
+def process(tickets_json):
     template_vars = {}
     for ticket in tickets_json['tickets']:
         ticket['status'] = ticket['status'].lower().capitalize()
@@ -15,4 +15,4 @@ def flatten(tickets_json):
         else:
             ticket['depth'] = 0
             template_vars[ticket['ticket_id']] = [ticket]
-    return template_vars
+    return {'tickets': template_vars}
