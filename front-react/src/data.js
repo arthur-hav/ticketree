@@ -1,21 +1,21 @@
- import { QueryClient, QueryClientProvider, useQuery } from 'react-query'
+import { QueryClient, QueryClientProvider, useQuery } from 'react-query'
 
- const queryClient = new QueryClient()
 
- export default function DataProvider() {
+const queryClient = new QueryClient()
+
+export default function DataProvider() {
    return (
      <QueryClientProvider client={queryClient}>
        <Example />
      </QueryClientProvider>
    )
- }
+}
 
 
- function Example() {
-   const { isLoading, error, data } = useQuery('repoData', () =>
-     fetch('/api/tickets').then(res =>
-       res.json()
-     )
+function Example() {
+   console.log(process.env.REACT_APP_API_SERVER)
+   const { isLoading, error, data } = useQuery('ticketsData', () =>
+     fetch(`${process.env.REACT_APP_API_SERVER}/api/tickets`).then(res => res.json())
    )
 
    if (isLoading) return 'Loading...'
@@ -26,7 +26,7 @@
      return (
        <li key={tck.ticket_id} class="paper">
          <h5>{tck.title}</h5>
-         <button>&#8942;</button>
+         <button className="btn">&#8942;</button>
        </li>
      );
    });
@@ -38,4 +38,4 @@
         </ul>
      </div>
    )
- }
+}

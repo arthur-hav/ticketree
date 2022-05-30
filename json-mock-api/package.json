@@ -1,0 +1,11 @@
+{
+  "name": "json-mock-api",
+  "version": "1.0.0",
+  "description": "A simple JSON mock API",
+  "main": "index.js",
+  "scripts": {
+    "server": "json-server --watch ./src/tickets.json --port 3004 --routes routes.json"
+  },
+  "author": "",
+  "license": "ISC"
+}

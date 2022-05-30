@@ -1,0 +1,11 @@
+{
+  "tickets": {
+    "tickets": [
+      {
+        "ticket_id": 123,
+        "title": "This is a client side generated title",
+        "description": "Lorem ipsum"
+      }
+    ]
+  }
+}
