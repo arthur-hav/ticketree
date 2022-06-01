@@ -2,9 +2,18 @@
   "tickets": {
     "tickets": [
       {
-        "ticket_id": 123,
-        "title": "This is a client side generated title",
-        "description": "Lorem ipsum"
+        "ticket_id": "667d7452-21dd-42e3-8737-0bd9ee50c1e9",
+        "assignee": "667d7454-21dd-42e3-8737-0bd9ee50c1e9",
+        "title": "This is a client side generated title This is a client side generated title This is a client side generated title This is a client side generated title",
+        "description": "Lorem ipsum",
+        "status": "In progress"
+      },
+      {
+        "ticket_id": "667d7452-21dd-42e3-8737-0bd9ee50c1e8",
+        "assignee": null,
+        "title": "This is another a client side generated title",
+        "description": "Lorem ipsum lorem ipsum",
+        "status": "Open"
       }
     ]
   }

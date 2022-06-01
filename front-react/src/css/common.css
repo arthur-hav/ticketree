@@ -1,0 +1,66 @@
+
+body {
+  align-items: center;
+  padding-top: 40px;
+  padding-bottom: 40px;
+  background-color: #152215;
+}
+
+.form-signin {
+  max-width: 350px;
+  padding: 15px;
+}
+input  {
+  margin: 10px;
+}
+.paper {
+  background-color: #f2f2cc;
+}
+.paper:focus {
+  background-color: #ffffdd;
+}
+
+.left-panel {
+    display: inline-block;
+    background-color: #556655;
+    width: 350px;
+    height: 100vh;
+    position: fixed;
+}
+
+.main {
+    display: inline-block;
+    width:100%
+}
+
+
+
+table tr {
+    border: 1px solid #888888;
+    height: 30px;
+}
+
+table .title {
+    width: 40vw;
+}
+
+table .title h5 {
+    max-width: 40vw;
+    text-overflow: ellipsis;
+    overflow:hidden;
+    white-space: nowrap;
+    line-height: 1.8em;
+    margin:0
+}
+table .icons{
+    width: 10vw;
+}
+
+.app {
+    width: 60%;
+    margin-left: 20%;
+}
+
+.tickets-table {
+    max-width: 70%;
+}
