@@ -20,14 +20,6 @@ input  {
   background-color: #ffffdd;
 }
 
-.left-panel {
-    display: inline-block;
-    background-color: #556655;
-    width: 350px;
-    height: 100vh;
-    position: fixed;
-}
-
 .main {
     display: inline-block;
     width:100%
@@ -38,14 +30,15 @@ input  {
 table tr {
     border: 1px solid #888888;
     height: 30px;
+    border-radius: 8px;
 }
 
 table .title {
-    width: 40vw;
+    padding: 0 10px;
 }
 
 table .title h5 {
-    max-width: 40vw;
+    max-width: calc(80vw - 300px);
     text-overflow: ellipsis;
     overflow:hidden;
     white-space: nowrap;
@@ -53,14 +46,41 @@ table .title h5 {
     margin:0
 }
 table .icons{
-    width: 10vw;
-}
-
-.app {
-    width: 60%;
-    margin-left: 20%;
+    width: 100px;
 }
 
 .tickets-table {
-    max-width: 70%;
+    margin-left: calc(6vw + 180px);
+    max-width: calc(90vw - 190px);
+    max-height: 80vh;
+    overflow-x: auto;
+    display: inline-block;
+}
+
+.pane-left {
+    background-color: #081408;
+    width: calc(5vw + 180px);
+    height: 88vh;
+    color: #f2f2cc;
+    box-shadow: 3px 3px 3px black;
+    display:inline-block;
+    position:absolute;
+}
+.align-center {
+    text-align:center;
+}
+
+.status-group {
+    display: inline-block;
+    border-radius: 5px;
+    background-color: #445544
+}
+
+.status-badge {
+   text-align:center;
+   padding: 4px;
+   box-sizing: border-box;
+   height: 38px;
+   width: 90px;
+   display: inline-block;
 }
