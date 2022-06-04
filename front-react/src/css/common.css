@@ -1,8 +1,8 @@
 
 body {
   align-items: center;
-  padding-top: 40px;
-  padding-bottom: 40px;
+  padding-top: 1vh;
+  padding-bottom: 1vh;
   background-color: #152215;
 }
 
@@ -25,28 +25,35 @@ input  {
     width:100%
 }
 
-
-
-table tr {
-    border: 1px solid #888888;
-    height: 30px;
-    border-radius: 8px;
+.ticket-row {
+    border-radius: 10px;
+    box-sizing: border-box;
+    height: 50px;
+    margin-bottom:4px;
+    display:flex;
 }
 
-table .title {
+.ib {
+    display: flex;
+    height: 50px;
+}
+
+.ticket-row .title {
+    flex: 1;
     padding: 0 10px;
 }
 
-table .title h5 {
-    max-width: calc(80vw - 300px);
+.ticket-row .title h5 {
+    max-width: calc(92vw - 360px);
     text-overflow: ellipsis;
     overflow:hidden;
     white-space: nowrap;
-    line-height: 1.8em;
-    margin:0
+    line-height: 50px;
+    margin:0;
 }
-table .icons{
+.ticket-row .icons{
     width: 100px;
+    align-self:right;
 }
 
 .tickets-table {
@@ -54,12 +61,34 @@ table .icons{
     max-width: calc(90vw - 190px);
     max-height: 80vh;
     overflow-x: auto;
-    display: inline-block;
+}
+
+.flexbtn {
+    flex: none;
+    width: 40px;
+}
+.flex1 {
+    flex: 1;
+}
+
+.add-ticket{
+    border: 3px dashed #f2f2cc;
+    color: #f2f2cc;
+    width: 100%;
+    background-color: rgba(0,0,0,0)
+}
+.add-ticket h4{
+    width:100%;
+    text-align: center;
+    line-height: 44px;
 }
 
 .pane-left {
+    padding: 8px;
+    border-radius: 5px;
     background-color: #081408;
-    width: calc(5vw + 180px);
+    width: calc(4vw + 180px);
+    left: 1vw;
     height: 88vh;
     color: #f2f2cc;
     box-shadow: 3px 3px 3px black;
@@ -71,7 +100,7 @@ table .icons{
 }
 
 .status-group {
-    display: inline-block;
+    display: flex;
     border-radius: 5px;
     background-color: #445544
 }
@@ -83,4 +112,22 @@ table .icons{
    height: 38px;
    width: 90px;
    display: inline-block;
+}
+
+.edit-text {
+    background-color: rgba(0,0,0,0);
+    resize: none;
+    border-width: 0px;
+    color: #f2f2cc;
+    readonly: false;
+}
+
+.pane-title {
+    height: 15vh;
+    font-size: 1.1em
+}
+
+.pane-description {
+    height: 40vh;
+    font-size: 0.92em
 }
