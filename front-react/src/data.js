@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider, useQuery } from 'react-query'
+import TextareaAutosize from 'react-textarea-autosize';
 import { useState } from "react";
 import React from "react";
 
@@ -14,21 +15,30 @@ const new_ticket = {
     parent_id: null,
     ticket_type: 'incident'
 }
-function create_son(ticket_obj, set_all_tck){
-    var son_tck = {
-        ...new_ticket
-    };
-    son_tck.parent = ticket_obj.ticket_id;
-    create_ticket(son_tck, set_all_tck);
+const progress_obj = {
+    Open: "Open.png",
+    Canceled: "Canceled.png",
+    Done: "Done.png"
 }
-function create_ticket(ticket_obj, set_all_tck){
-    var url = `${process.env.REACT_APP_API_SERVER}/api/tickets`
-    var xhr = new XMLHttpRequest();
-    xhr.open("POST", url);
-    xhr.setRequestHeader("Accept", "application/json");
-    xhr.setRequestHeader("Content-Type", "application/json");
-    xhr.send(JSON.stringify(ticket_obj));
-    set_all_tck(undefined)
+progress_obj["In progress"] = "Inprogress.png"
+
+
+function create_son(parent_tck, all_tck, set_all_tck){
+    var son_tck = { ...new_ticket}
+    son_tck.parent_id = parent_tck.ticket_id;
+    create_ticket(son_tck, all_tck, set_all_tck);
+}
+function create_ticket(ticket, all_tck, set_all_tck){
+    var myHeaders = new Headers();
+    myHeaders.append('Content-Type', 'application/json');
+    const url = `${process.env.REACT_APP_API_SERVER}/api/tickets`
+    const request = new Request(url, {method: 'POST', body: JSON.stringify(ticket), headers:myHeaders});
+    fetch (request).then(response => response.json()).then(data => {
+        var ticket_obj = { ...ticket}
+        ticket_obj.ticket_id = data.ticket_id;
+        set_all_tck({tickets: all_tck.tickets.concat([ticket_obj])});
+    });
+
 }
 
 export default function DataProvider() {
@@ -57,12 +67,11 @@ function set_status(tck, set_ticket, all_tck, set_all_tck, dir){
 
 
 function put_ticket(ticket, set_ticket, all_tck, set_all_tck){
-    var url = `${process.env.REACT_APP_API_SERVER}/api/tickets`
-    var xhr = new XMLHttpRequest();
-    xhr.open("PUT", url);
-    xhr.setRequestHeader("Accept", "application/json");
-    xhr.setRequestHeader("Content-Type", "application/json");
-    xhr.send(JSON.stringify(ticket));
+    var myHeaders = new Headers();
+    myHeaders.append('Content-Type', 'application/json');
+    const url = `${process.env.REACT_APP_API_SERVER}/api/tickets`
+    const request = new Request(url, {method: 'PUT', body: JSON.stringify(ticket), headers: myHeaders});
+    fetch(request);
     const new_tck = {tickets: all_tck.tickets.map((tck) => tck.ticket_id !== ticket.ticket_id ? tck : { ...ticket})}
     set_all_tck(new_tck)
     set_ticket({ ...ticket})
@@ -74,14 +83,10 @@ class TitleArea extends React.Component {
         this.state = {title: props.ticket.title}
     }
     shouldComponentUpdate(nextProps) {
-        if(nextProps.ticket.ticket_id !== this.props.ticket.ticket_id) {
+        if(nextProps.ticket.title !== this.props.ticket.title) {
             this.setState({title: nextProps.ticket.title})
-            return true;
         }
-        else if (nextProps.ticket.title !== this.state.title) {
-            return true;
-        }
-        return false;
+        return true;
     }
     updateText = (event) => {
         event.preventDefault();
@@ -89,11 +94,12 @@ class TitleArea extends React.Component {
     }
     render() {
         return (
-            <textarea className="pane-title edit-text"
+            <TextareaAutosize className="pane-title edit-text"
                 value={this.state.title}
                 onChange={this.updateText}
                 onBlur={(event) => set_title(this.props.ticket, this.props.set_ticket, event, this.props.all_tck, this.props.set_all_tck)}>
-            </textarea>);
+            </TextareaAutosize>
+        );
     }
 }
 
@@ -105,12 +111,8 @@ class DescArea extends React.Component {
     shouldComponentUpdate(nextProps) {
         if(nextProps.ticket.ticket_id !== this.props.ticket.ticket_id) {
             this.setState({description: nextProps.ticket.description})
-            return true;
         }
-        else if (nextProps.ticket.description !== this.state.description) {
-            return true;
-        }
-        return false;
+        return true;
     }
     updateText = (event) => {
         event.preventDefault();
@@ -118,11 +120,11 @@ class DescArea extends React.Component {
     }
     render() {
         return (
-            <textarea className="pane-description edit-text"
+            <TextareaAutosize className="pane-description edit-text"
                 value={this.state.description}
                 onChange={this.updateText}
                 onBlur={(event) => set_description(this.props.ticket, this.props.set_ticket, event, this.props.all_tck, this.props.set_all_tck)}>
-            </textarea>);
+            </TextareaAutosize>);
     }
 }
 
@@ -138,6 +140,23 @@ const PaneLeft: React.FC<Props> = ({
         return (
           <h4>Select a ticket to see its details</h4>
         );
+      }
+      var sons = []
+      const progress =  process.env.PUBLIC_URL + '/static/img/' + progress_obj[ticket.status];
+      for (var tck_idx in all_tck.tickets){
+        if(ticket.ticket_id && all_tck.tickets[tck_idx].parent_id === ticket.ticket_id){
+            const parent_tck = all_tck.tickets[tck_idx]
+            sons.push(
+                <div className="ticket-row-mini paper"
+                    key={parent_tck.ticket_id}
+                    onClick={() => set_ticket(parent_tck)}>
+                    <div className="flex1 title-mini">{parent_tck.title}</div>
+                    <div className="flexbtn icons">
+                        <img src={progress} alt={ticket.status}></img>
+                    </div>
+                </div>
+            )
+        }
       }
       return (
       <div>
@@ -162,6 +181,10 @@ const PaneLeft: React.FC<Props> = ({
         <div>
           {ticket.owner}
         </div>
+        <div className="sons-container">
+          <button className="add-ticket ticket-row-mini" onClick={() => create_son(ticket, all_tck, set_all_tck)}><span>Create son</span></button>
+          {sons}
+        </div>
       </div>
       );
 }
@@ -182,12 +205,6 @@ function Example() {
     if (isLoading) return 'Loading...'
 
     if (error) return 'An error has occurred: ' + error.message
-    const progress_obj = {
-        Open: "Open.png",
-        Canceled: "Canceled.png",
-        Done: "Done.png"
-    }
-    progress_obj["In progress"] = "Inprogress.png"
 
     const tickets = all_tck.tickets.map((tck) => {
     const progress =  process.env.PUBLIC_URL + '/static/img/' + progress_obj[tck.status];
@@ -198,15 +215,6 @@ function Example() {
         </div>
         <div className="icons ib">
           <img src={progress} alt={tck.status}></img>
-        </div>
-        <div className="bradius-right ib">
-          <button type="button" className="btn btn-secondary dropdown-toggle dropdown-toggle-split"
-             data-bs-toggle="dropdown" aria-expanded="false">
-            <span className="visually-hidden">Toggle Dropdown</span>
-          </button>
-          <ul className="dropdown-menu dropdown-menu-end">
-            <li><span className="dropdown-item" onClick={() => create_son(tck, set_all_tck)}>Create son</span></li>
-          </ul>
         </div>
       </div>
     );
@@ -220,7 +228,7 @@ function Example() {
        <PaneLeft ticket={get_selected} set_ticket={set_selected} all_tck={all_tck} set_all_tck={set_all_tck}/>
      </div>
      <div className="tickets-table">
-       <button className="ticket-row add-ticket" onClick={() => create_ticket(new_ticket, set_all_tck)}>
+       <button className="ticket-row add-ticket" onClick={() => create_ticket(new_ticket, all_tck, set_all_tck)}>
          <h4>Add a new ticket</h4>
        </button>
        {tickets}

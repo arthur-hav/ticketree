@@ -2,7 +2,6 @@ import React from 'react';
 import ReactDOM from 'react-dom';
 import './css/common.css';
 import DataProvider from './data.js'
-import Login from './login.js'
 import {
   BrowserRouter,
   Routes,

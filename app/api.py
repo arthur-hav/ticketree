@@ -20,7 +20,6 @@ import uuid
 
 from .db_conn import Cursor
 
-
 SECRET_KEY = os.environ.get("TCK_SECRET_KEY")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 1440
@@ -103,7 +102,6 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
 
 
 async def require_admin():
-
     user = await get_current_user()
     return user.is_admin
 
@@ -161,9 +159,9 @@ class Ticket(NewTicket):
 
 def create_admin():
     superadmin = NewUser(username=os.environ.get('TCK_ADMIN_LOGIN'),
-                      display_name='Super admin',
-                      is_admin=True,
-                      password=os.environ.get('TCK_ADMIN_PASSWORD'))
+                         display_name='Super admin',
+                         is_admin=True,
+                         password=os.environ.get('TCK_ADMIN_PASSWORD'))
     cur = Cursor()
     query = sql.SQL(f"""
     INSERT INTO profiles (id, username, is_admin, display_name, pass_hash)
@@ -174,6 +172,7 @@ def create_admin():
                         superadmin.is_admin,
                         superadmin.display_name,
                         get_password_hash(superadmin.password)))
+
 
 create_admin()
 
@@ -348,8 +347,9 @@ async def post_ticket(ticket: NewTicket, user: User = Depends(get_current_user))
     INSERT INTO ticket (id, owner_id, title, type, description, assignee, organization, parent_id, status) 
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
     """)
+    new_uuid = uuid.uuid4()
     cur.execute(query,
-                (str(uuid.uuid4()),
+                (str(new_uuid),
                  str(user.id),
                  ticket.title,
                  ticket.ticket_type,
@@ -358,13 +358,12 @@ async def post_ticket(ticket: NewTicket, user: User = Depends(get_current_user))
                  str(ticket.organization) if ticket.organization else None,
                  str(ticket.parent_id) if ticket.parent_id else None,
                  ticket.status
-                ))
+                 ))
+    return {'success': True, 'ticket_id': new_uuid}
 
-    return {'success': True}
 
-
-@app.put("/tickets/{ticket_id}")
-async def put_ticket(ticket: NewTicket, ticket_id: uuid.UUID, user: User = Depends(get_current_user)):
+@app.put("/tickets/")
+async def put_ticket(ticket: Ticket, user: User = Depends(get_current_user)):
     if user.is_admin:
         acls = ['#true']
     else:
@@ -383,7 +382,7 @@ async def put_ticket(ticket: NewTicket, ticket_id: uuid.UUID, user: User = Depen
     query = sql.SQL("""
     SELECT title, type, description, assignee, organization, parent_id, status FROM ticket WHERE id = %s;
     """)
-    cur.execute(query, (str(ticket_id),))
+    cur.execute(query, (str(ticket.ticket_id),))
     cur_ticket_data = cur.fetchone()
     cur_ticket = NewTicket(
         title=cur_ticket_data[0],
@@ -416,8 +415,8 @@ async def put_ticket(ticket: NewTicket, ticket_id: uuid.UUID, user: User = Depen
                  str(ticket.organization) if ticket.organization else None,
                  str(ticket.parent_id) if ticket.parent_id else None,
                  ticket.status,
-                 str(ticket_id)
-                ))
+                 str(ticket.ticket_id)
+                 ))
     return {'success': cur.rowcount}
 
 
@@ -434,7 +433,7 @@ async def post_filter(filter: NewFilter, user: User = Depends(get_current_user))
                 (str(uuid.uuid4()),
                  str(user.id),
                  FilterExpression(filter.expression).store_str()
-                ))
+                 ))
     return {'success': True}
 
 
@@ -636,8 +635,8 @@ async def websocket_endpoint(websocket: WebSocket):
         while start < then:
             rand = max(min(rand + (random.random() - 0.5) * 0.2, 1), - 1)
             data.append([math.cos(start.timestamp()),
-                          math.sin(start.timestamp()),
-                          rand])
+                         math.sin(start.timestamp()),
+                         rand])
             start += datetime.timedelta(milliseconds=100)
         await websocket.send_text(json.dumps({'data': data}))
         await asyncio.sleep(0.5)
