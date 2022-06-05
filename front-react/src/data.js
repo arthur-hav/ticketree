@@ -27,8 +27,8 @@ function create_ticket(ticket_obj, set_all_tck){
     xhr.open("POST", url);
     xhr.setRequestHeader("Accept", "application/json");
     xhr.setRequestHeader("Content-Type", "application/json");
-    //xhr.send(JSON.stringify(ticket_obj));
-    set_all_tck(null)
+    xhr.send(JSON.stringify(ticket_obj));
+    set_all_tck(undefined)
 }
 
 export default function DataProvider() {
@@ -62,8 +62,8 @@ function put_ticket(ticket, set_ticket, all_tck, set_all_tck){
     xhr.open("PUT", url);
     xhr.setRequestHeader("Accept", "application/json");
     xhr.setRequestHeader("Content-Type", "application/json");
-    //xhr.send(JSON.stringify(ticket));
-    const new_tck = all_tck.tickets.map((tck) => tck.ticket_id === ticket ? tck : { ...ticket})
+    xhr.send(JSON.stringify(ticket));
+    const new_tck = {tickets: all_tck.tickets.map((tck) => tck.ticket_id !== ticket.ticket_id ? tck : { ...ticket})}
     set_all_tck(new_tck)
     set_ticket({ ...ticket})
 }
@@ -118,7 +118,7 @@ class DescArea extends React.Component {
     }
     render() {
         return (
-            <textarea className="pane-title edit-text"
+            <textarea className="pane-description edit-text"
                 value={this.state.description}
                 onChange={this.updateText}
                 onBlur={(event) => set_description(this.props.ticket, this.props.set_ticket, event, this.props.all_tck, this.props.set_all_tck)}>
@@ -154,7 +154,7 @@ const PaneLeft: React.FC<Props> = ({
           </span>
         </div>
         <div>
-          <textarea className="pane-description edit-text" onBlur={(event) => set_description(ticket, set_ticket, event, all_tck, set_all_tck)} defaultValue={ticket.description}></textarea>
+          <DescArea ticket={ticket} set_ticket={set_ticket} all_tck={all_tck} set_all_tck={set_all_tck} />
         </div>
         <div>
           {ticket.assignee}
@@ -174,7 +174,7 @@ function Example() {
     const { isLoading, error, data } = useQuery('ticketsData', () =>
       fetch(`${process.env.REACT_APP_API_SERVER}/api/tickets`).then(res => res.json())
     )
-    if (data !== all_tck){
+    if (data && typeof(all_tck) === 'undefined'){
         set_all_tck(data)
         return
     }
@@ -221,7 +221,7 @@ function Example() {
      </div>
      <div className="tickets-table">
        <button className="ticket-row add-ticket" onClick={() => create_ticket(new_ticket, set_all_tck)}>
-       <h4>Add a new ticket</h4>
+         <h4>Add a new ticket</h4>
        </button>
        {tickets}
      </div>

@@ -14,7 +14,6 @@ class App extends React.Component {
     return (
       <BrowserRouter>
         <Routes>
-          <Route index element={<Login />} />
           <Route path="tickets" element={<DataProvider />} />
         </Routes>
       </BrowserRouter>
