@@ -16,11 +16,11 @@ const new_ticket = {
     ticket_type: 'incident'
 }
 const progress_obj = {
-    Open: "Open.png",
-    Canceled: "Canceled.png",
-    Done: "Done.png"
+    Open: process.env.PUBLIC_URL + "/static/img/Open.png",
+    Canceled: process.env.PUBLIC_URL + "/static/img/Canceled.png",
+    Done: process.env.PUBLIC_URL + "/static/img/Done.png"
 }
-progress_obj["In progress"] = "Inprogress.png"
+progress_obj["In progress"] = process.env.PUBLIC_URL + "/static/img/Inprogress.png"
 
 
 function create_son(parent_tck, all_tck, set_all_tck){
@@ -75,6 +75,53 @@ function put_ticket(ticket, set_ticket, all_tck, set_all_tck){
     const new_tck = {tickets: all_tck.tickets.map((tck) => tck.ticket_id !== ticket.ticket_id ? tck : { ...ticket})}
     set_all_tck(new_tck)
     set_ticket({ ...ticket})
+}
+
+class FilterPane extends React.Component {
+    constructor(props) {
+        super(props)
+        this.state = {string: "", status: {
+            "Canceled": true,
+            "Open": true,
+            "In progress": true,
+            "Done": true
+            }}
+    }
+
+    apply_search = (event) => {
+        this.setState({string: event.target.value})
+        this.props.set_search(this.state)
+    }
+
+    replace_status = (event, status_name) => {
+        this.setState((prevState => {
+            var new_state = { ...prevState}
+            new_state.status[status_name] = event.target.checked;
+            this.props.set_search(new_state);
+            return new_state}))
+    }
+
+    render () {
+    return (
+        <div className="filter-pane">
+          <div>
+            <label htmlFor="search"><h4>Search</h4></label>
+            <input type="text" name="search" className="search-input" onChange={this.apply_search}/>
+           <input type="checkbox" defaultChecked={this.state.status["Canceled"]}
+             onChange={(event) => this.replace_status(event, "Canceled")} />
+           <img src={progress_obj["Canceled"]} alt="Canceled"></img>
+           <input type="checkbox" defaultChecked={this.state.status["Open"]}
+             onChange={(event) => this.replace_status(event, "Open")} />
+           <img src={progress_obj["Open"]} alt="Open"></img>
+           <input type="checkbox" defaultChecked={this.state.status["In progress"]}
+             onChange={(event) => this.replace_status(event, "In progress")} />
+           <img src={progress_obj["In progress"]} alt="In progress"></img>
+           <input type="checkbox" defaultChecked={this.state.status["Done"]}
+             onChange={(event) => this.replace_status(event, "Done")} />
+           <img src={progress_obj["Done"]} alt="Done"></img>
+           </div>
+        </div>
+    );}
 }
 
 class TitleArea extends React.Component {
@@ -138,31 +185,30 @@ const PaneLeft: React.FC<Props> = ({
 }) => {
       if (!ticket){
         return (
-          <h4>Select a ticket to see its details</h4>
+          <div className="pane-left">
+            <h4>Select a ticket to see its details</h4>
+          </div>
         );
       }
       var sons = []
-      const progress =  process.env.PUBLIC_URL + '/static/img/' + progress_obj[ticket.status];
       for (var tck_idx in all_tck.tickets){
         if(ticket.ticket_id && all_tck.tickets[tck_idx].parent_id === ticket.ticket_id){
             const parent_tck = all_tck.tickets[tck_idx]
             sons.push(
-                <div className="ticket-row-mini paper"
+                <div className="ticket-row-mini ticket-paper"
                     key={parent_tck.ticket_id}
                     onClick={() => set_ticket(parent_tck)}>
                     <div className="flex1 title-mini">{parent_tck.title}</div>
                     <div className="flexbtn icons">
-                        <img src={progress} alt={ticket.status}></img>
+                        <img src={progress_obj[ticket.status]} alt={ticket.status}></img>
                     </div>
                 </div>
             )
         }
       }
       return (
-      <div>
-        <div>
-            <TitleArea ticket={ticket} set_ticket={set_ticket} all_tck={all_tck} set_all_tck={set_all_tck}/>
-        </div>
+      <div className="pane-left">
+        <TitleArea ticket={ticket} set_ticket={set_ticket} all_tck={all_tck} set_all_tck={set_all_tck}/>
         <div className="align-center">
           <span className="status-group">
             {ticket.status === 'Canceled' ? <div className="flexbtn"></div>:
@@ -172,9 +218,7 @@ const PaneLeft: React.FC<Props> = ({
             <button className="btn flexbtn" onClick={() => set_status(ticket, set_ticket, all_tck, set_all_tck, + 1)}>&#9654;</button>}
           </span>
         </div>
-        <div>
-          <DescArea ticket={ticket} set_ticket={set_ticket} all_tck={all_tck} set_all_tck={set_all_tck} />
-        </div>
+        <DescArea ticket={ticket} set_ticket={set_ticket} all_tck={all_tck} set_all_tck={set_all_tck} />
         <div>
           {ticket.assignee}
         </div>
@@ -194,6 +238,7 @@ const PaneLeft: React.FC<Props> = ({
 function Example() {
     const [get_selected, set_selected] = useState()
     const [all_tck, set_all_tck] = useState()
+    const [search, set_search] = useState()
     const { isLoading, error, data } = useQuery('ticketsData', () =>
       fetch(`${process.env.REACT_APP_API_SERVER}/api/tickets`).then(res => res.json())
     )
@@ -206,27 +251,30 @@ function Example() {
 
     if (error) return 'An error has occurred: ' + error.message
 
-    const tickets = all_tck.tickets.map((tck) => {
-    const progress =  process.env.PUBLIC_URL + '/static/img/' + progress_obj[tck.status];
+    if (search)
+        console.log('search - ' + search.status.Open)
+    const fltr_tck = all_tck.tickets.filter(ticket => typeof(search) === "undefined"
+                                            || ((ticket.title.toLowerCase().includes(search.string.toLowerCase())
+                                                 || ticket.description.toLowerCase().includes(search.string.toLowerCase()))
+                                                && search.status[ticket.status]))
+
+    const tickets = fltr_tck.map((tck) => {
     return (
-      <div className="ticket-row paper" key={tck.ticket_id}>
+      <div className="ticket-row ticket-paper" key={tck.ticket_id}>
         <div className="title ib" onClick={() => set_selected(tck)}>
            <h5>{tck.title}</h5>
         </div>
         <div className="icons ib">
-          <img src={progress} alt={tck.status}></img>
+          <img src={progress_obj[tck.status]} alt={tck.status}></img>
         </div>
       </div>
     );
    });
 
-
-
    return (
    <div>
-     <div className="pane-left">
-       <PaneLeft ticket={get_selected} set_ticket={set_selected} all_tck={all_tck} set_all_tck={set_all_tck}/>
-     </div>
+     <PaneLeft ticket={get_selected} set_ticket={set_selected} all_tck={all_tck} set_all_tck={set_all_tck}/>
+     <FilterPane search={search} set_search={set_search}/>
      <div className="tickets-table">
        <button className="ticket-row add-ticket" onClick={() => create_ticket(new_ticket, all_tck, set_all_tck)}>
          <h4>Add a new ticket</h4>
