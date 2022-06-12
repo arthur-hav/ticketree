@@ -1,8 +1,7 @@
 
 body {
   align-items: center;
-  padding-top: 1vh;
-  padding-bottom: 1vh;
+  margin:0;
   background-color: #152215;
 }
 
@@ -10,9 +9,7 @@ body {
   max-width: 350px;
   padding: 15px;
 }
-input  {
-  margin: 10px;
-}
+
 .paper {
   background-color: #f2f0cc;
   color:black;
@@ -39,12 +36,7 @@ input  {
     display:flex;
 }
 
-.ib {
-    display: flex;
-    height: 46px;
-}
-
-.icons img {
+img {
     width: 24px;
     height: 24px;
     overflow:hidden;
@@ -60,6 +52,11 @@ input  {
     padding: 0 10px;
 }
 
+.ticket-icon {
+    flex: none;
+    width: 40px;
+}
+
 .ticket-row .title h5 {
     max-width: calc(86vw - 260px);
     text-overflow: ellipsis;
@@ -69,11 +66,12 @@ input  {
     margin:0;
 }
 .ticket-row .icons{
-    width: 60px;
+    width: 50px;
 }
 
-.ticket-row .icons img{
+.ticket-row img{
     margin-top: 10px;
+    margin-left: 10px;
 }
 
 .icons{
@@ -112,7 +110,7 @@ input  {
     margin-left: calc(14vw + 140px);
     max-width: calc(82vw - 150px);
     margin-bottom: 1vh;
-    height: calc(60px);
+    height: 30px;
     padding: 10px;
     color: #f2f0cc;
     box-shadow: 3px 3px 3px black;
@@ -120,7 +118,21 @@ input  {
     display: flex;
 }
 
-.filter-pane div{
+.filter-pane div span{
+    display: flex;
+    flex: 1;
+}
+
+.filter-pane input[type=text] {
+    height: 20px
+}
+
+.filter-pane div span *{
+    margin: 0 5px;
+    line-height: 30px;
+}
+
+.filter-pane div {
     display: flex;
 }
 
@@ -133,12 +145,6 @@ input  {
     width: 24px;
     height: 24px;
     overflow:hidden;
-    margin-top: 8px;
-}
-
-.filter-pane div *{
-    flex: 1;
-    margin: 2px 15px;
 }
 
 .title-mini {
@@ -151,6 +157,14 @@ input  {
 }
 .flex1 {
     flex: 1;
+}
+
+.flex {
+    display: flex
+}
+
+.flex *{
+    flex: 1
 }
 
 .add-ticket{
@@ -172,10 +186,9 @@ input  {
 
 .pane-left {
     padding: 8px;
-    border-radius: 5px;
+    border-bottom-right-radius: 5px;
     background-color: #081408;
-    width: calc(12vw + 140px);
-    left: 1vw;
+    width: calc(12.5vw + 140px);
     height: 88vh;
     color: #f2f0cc;
     box-shadow: 3px 3px 3px black;
@@ -197,6 +210,7 @@ input  {
    text-align:center;
    padding: 4px;
    box-sizing: border-box;
+   line-height: 26px;
    height: 34px;
    width: 90px;
    display: inline-block;
@@ -218,4 +232,34 @@ input  {
 .pane-description {
     flex: 3;
     font-size: 0.92em
+}
+
+.navbar {
+    background-color: #020802;
+    width: 100%;
+    height: 50px;
+    display: flex;
+
+}
+.navbar a {
+    flex: 1;
+    max-width: 100px;
+    line-height: 48px;
+    border: 2px solid #254425;
+    margin-right: -2px;
+    color: #f2f0cc;
+    text-align: center;
+}
+
+button {
+    cursor: pointer;
+}
+
+* {
+    font-size: 1em;
+    font-family: sans-serif;
+    font-weight: normal;
+}
+h5, h4, h3, h2, h1 {
+    margin: 0;
 }

@@ -1,9 +1,5 @@
-import { QueryClient, QueryClientProvider, useQuery } from 'react-query'
 import TextareaAutosize from 'react-textarea-autosize';
-import { useState } from "react";
 import React from "react";
-
-const queryClient = new QueryClient()
 
 const status_list = ["Canceled", "Open", "In progress", "Done"]
 const new_ticket = {
@@ -23,11 +19,64 @@ const progress_obj = {
 progress_obj["In progress"] = process.env.PUBLIC_URL + "/static/img/Inprogress.png"
 
 
+
+function create_ticket_element(all_tck, set_all_tck){
+    return (
+       <button className="ticket-row add-ticket" onClick={() => create_ticket(new_ticket, all_tck, set_all_tck)}>
+         <h4>Add a new ticket</h4>
+       </button>
+    );
+}
+
+function specific_search_ticket(elem){
+return (
+        <span>
+           <input type="checkbox" defaultChecked={elem.state.status["Canceled"]}
+             onChange={(event) => elem.replace_status(event, "Canceled")} />
+           <img src={progress_obj["Canceled"]} alt="Canceled"></img>
+           <input type="checkbox" defaultChecked={elem.state.status["Open"]}
+             onChange={(event) => elem.replace_status(event, "Open")} />
+           <img src={progress_obj["Open"]} alt="Open"></img>
+           <input type="checkbox" defaultChecked={elem.state.status["In progress"]}
+             onChange={(event) => elem.replace_status(event, "In progress")} />
+           <img src={progress_obj["In progress"]} alt="In progress"></img>
+           <input type="checkbox" defaultChecked={elem.state.status["Done"]}
+             onChange={(event) => elem.replace_status(event, "Done")} />
+           <img src={progress_obj["Done"]} alt="Done"></img>
+        </span>
+           );
+}
+
 function create_son(parent_tck, all_tck, set_all_tck){
     var son_tck = { ...new_ticket}
     son_tck.parent_id = parent_tck.ticket_id;
     create_ticket(son_tck, all_tck, set_all_tck);
 }
+
+export function tickets_from_json(all_tck, search, set_selected){
+    const fltr_tck = all_tck.tickets.filter(ticket => typeof(search) === "undefined"
+                                            || ((ticket.title.toLowerCase().includes(search.string.toLowerCase())
+                                                 || ticket.description.toLowerCase().includes(search.string.toLowerCase()))
+                                                && search.status[ticket.status]))
+
+    const tickets = fltr_tck.map((tck) => {
+    return (
+      <div className="ticket-row ticket-paper" key={tck.ticket_id} onClick={() => set_selected(tck)}>
+        <div className="title">
+           <h5>{tck.title}</h5>
+        </div>
+        <div className="icons">
+          <ImgIcon img_id={tck.assignee} />
+        </div>
+        <div className="icons">
+          <img src={progress_obj[tck.status]} alt={tck.status}></img>
+        </div>
+      </div>
+    );
+   });
+   return tickets;
+}
+
 function create_ticket(ticket, all_tck, set_all_tck){
     var myHeaders = new Headers();
     myHeaders.append('Content-Type', 'application/json');
@@ -39,14 +88,6 @@ function create_ticket(ticket, all_tck, set_all_tck){
         set_all_tck({tickets: all_tck.tickets.concat([ticket_obj])});
     });
 
-}
-
-export default function DataProvider() {
-   return (
-     <QueryClientProvider client={queryClient}>
-       <Example />
-     </QueryClientProvider>
-   )
 }
 
 function set_title(tck, set_ticket, event, all_tck, set_all_tck){
@@ -64,8 +105,6 @@ function set_status(tck, set_ticket, all_tck, set_all_tck, dir){
     tck.status = status_list[new_status_idx]
     put_ticket(tck, set_ticket, all_tck, set_all_tck)
 }
-
-
 function put_ticket(ticket, set_ticket, all_tck, set_all_tck){
     var myHeaders = new Headers();
     myHeaders.append('Content-Type', 'application/json');
@@ -75,53 +114,6 @@ function put_ticket(ticket, set_ticket, all_tck, set_all_tck){
     const new_tck = {tickets: all_tck.tickets.map((tck) => tck.ticket_id !== ticket.ticket_id ? tck : { ...ticket})}
     set_all_tck(new_tck)
     set_ticket({ ...ticket})
-}
-
-class FilterPane extends React.Component {
-    constructor(props) {
-        super(props)
-        this.state = {string: "", status: {
-            "Canceled": true,
-            "Open": true,
-            "In progress": true,
-            "Done": true
-            }}
-    }
-
-    apply_search = (event) => {
-        this.setState({string: event.target.value})
-        this.props.set_search(this.state)
-    }
-
-    replace_status = (event, status_name) => {
-        this.setState((prevState => {
-            var new_state = { ...prevState}
-            new_state.status[status_name] = event.target.checked;
-            this.props.set_search(new_state);
-            return new_state}))
-    }
-
-    render () {
-    return (
-        <div className="filter-pane">
-          <div>
-            <label htmlFor="search"><h4>Search</h4></label>
-            <input type="text" name="search" className="search-input" onChange={this.apply_search}/>
-           <input type="checkbox" defaultChecked={this.state.status["Canceled"]}
-             onChange={(event) => this.replace_status(event, "Canceled")} />
-           <img src={progress_obj["Canceled"]} alt="Canceled"></img>
-           <input type="checkbox" defaultChecked={this.state.status["Open"]}
-             onChange={(event) => this.replace_status(event, "Open")} />
-           <img src={progress_obj["Open"]} alt="Open"></img>
-           <input type="checkbox" defaultChecked={this.state.status["In progress"]}
-             onChange={(event) => this.replace_status(event, "In progress")} />
-           <img src={progress_obj["In progress"]} alt="In progress"></img>
-           <input type="checkbox" defaultChecked={this.state.status["Done"]}
-             onChange={(event) => this.replace_status(event, "Done")} />
-           <img src={progress_obj["Done"]} alt="Done"></img>
-           </div>
-        </div>
-    );}
 }
 
 class TitleArea extends React.Component {
@@ -150,6 +142,14 @@ class TitleArea extends React.Component {
     }
 }
 
+class ImgIcon extends React.Component {
+    render() {
+        if (!this.props.img_id) return;
+        const img_src = `${process.env.REACT_APP_API_SERVER}/img/${this.props.img_id}`
+        return <img src={img_src} alt={this.props.img_id}></img>
+    }
+}
+
 class DescArea extends React.Component {
     constructor(props) {
         super(props);
@@ -175,9 +175,7 @@ class DescArea extends React.Component {
     }
 }
 
-
-
-const PaneLeft: React.FC<Props> = ({
+export const PaneLeft: React.FC<Props> = ({
   ticket,
   set_ticket,
   all_tck,
@@ -191,10 +189,26 @@ const PaneLeft: React.FC<Props> = ({
         );
       }
       var sons = []
+      var parents = [];
       for (var tck_idx in all_tck.tickets){
         if(ticket.ticket_id && all_tck.tickets[tck_idx].parent_id === ticket.ticket_id){
-            const parent_tck = all_tck.tickets[tck_idx]
+            const son_tck = all_tck.tickets[tck_idx]
+
             sons.push(
+                <div className="ticket-row-mini ticket-paper"
+                    key={son_tck.ticket_id}
+                    onClick={() => set_ticket(son_tck)}>
+                    <div className="flex1 title-mini">{son_tck.title}</div>
+                    <div className="flexbtn icons">
+                        <img src={progress_obj[ticket.status]} alt={ticket.status}></img>
+                    </div>
+                </div>
+            )
+        }
+        else if (ticket.parent_id && all_tck.tickets[tck_idx].ticket_id === ticket.parent_id){
+            const parent_tck = all_tck.tickets[tck_idx]
+
+            parents.push(
                 <div className="ticket-row-mini ticket-paper"
                     key={parent_tck.ticket_id}
                     onClick={() => set_ticket(parent_tck)}>
@@ -208,6 +222,9 @@ const PaneLeft: React.FC<Props> = ({
       }
       return (
       <div className="pane-left">
+        <div>
+          <ImgIcon img_id={ticket.ticket_id} />
+        </div>
         <TitleArea ticket={ticket} set_ticket={set_ticket} all_tck={all_tck} set_all_tck={set_all_tck}/>
         <div className="align-center">
           <span className="status-group">
@@ -219,68 +236,30 @@ const PaneLeft: React.FC<Props> = ({
           </span>
         </div>
         <DescArea ticket={ticket} set_ticket={set_ticket} all_tck={all_tck} set_all_tck={set_all_tck} />
-        <div>
-          {ticket.assignee}
+        <div className="flex">
+          <div>
+          <span>Assignee: </span>
+          <ImgIcon img_id={ticket.assignee} />
+          </div>
+          <div>
+          <span>Owner: </span>
+          <ImgIcon img_id={ticket.owner} />
+          </div>
         </div>
-        <div>
-          {ticket.owner}
-        </div>
+        {parents}
         <div className="sons-container">
-          <button className="add-ticket ticket-row-mini" onClick={() => create_son(ticket, all_tck, set_all_tck)}><span>Create son</span></button>
+          <button className="add-ticket ticket-row-mini" onClick={() => create_son(ticket, all_tck, set_all_tck)}>
+            <span>Create son</span>
+          </button>
           {sons}
         </div>
       </div>
       );
 }
 
-
-
-function Example() {
-    const [get_selected, set_selected] = useState()
-    const [all_tck, set_all_tck] = useState()
-    const [search, set_search] = useState()
-    const { isLoading, error, data } = useQuery('ticketsData', () =>
-      fetch(`${process.env.REACT_APP_API_SERVER}/api/tickets`).then(res => res.json())
-    )
-    if (data && typeof(all_tck) === 'undefined'){
-        set_all_tck(data)
-        return
-    }
-
-    if (isLoading) return 'Loading...'
-
-    if (error) return 'An error has occurred: ' + error.message
-
-    if (search)
-        console.log('search - ' + search.status.Open)
-    const fltr_tck = all_tck.tickets.filter(ticket => typeof(search) === "undefined"
-                                            || ((ticket.title.toLowerCase().includes(search.string.toLowerCase())
-                                                 || ticket.description.toLowerCase().includes(search.string.toLowerCase()))
-                                                && search.status[ticket.status]))
-
-    const tickets = fltr_tck.map((tck) => {
-    return (
-      <div className="ticket-row ticket-paper" key={tck.ticket_id}>
-        <div className="title ib" onClick={() => set_selected(tck)}>
-           <h5>{tck.title}</h5>
-        </div>
-        <div className="icons ib">
-          <img src={progress_obj[tck.status]} alt={tck.status}></img>
-        </div>
-      </div>
-    );
-   });
-
-   return (
-   <div>
-     <PaneLeft ticket={get_selected} set_ticket={set_selected} all_tck={all_tck} set_all_tck={set_all_tck}/>
-     <FilterPane search={search} set_search={set_search}/>
-     <div className="tickets-table">
-       <button className="ticket-row add-ticket" onClick={() => create_ticket(new_ticket, all_tck, set_all_tck)}>
-         <h4>Add a new ticket</h4>
-       </button>
-       {tickets}
-     </div>
-   </div>
-   )
+export const export_tck = {
+ pane_left: PaneLeft,
+ from_json: tickets_from_json,
+ search: specific_search_ticket,
+ create: create_ticket_element
 }

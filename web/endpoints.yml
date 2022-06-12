@@ -1,6 +1,1 @@
-endpoints:
-  '/tickets':
-    GET:
-      backends: ['https://app:8181/tickets']
-      processors: ['web.plugins.tickets']
-      template: tickets.html
+endpoints: {}

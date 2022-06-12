@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
 import './css/common.css';
-import DataProvider from './data.js'
+import DataProvider from './tickets.js'
 import {
   BrowserRouter,
   Routes,
@@ -13,7 +13,8 @@ class App extends React.Component {
     return (
       <BrowserRouter>
         <Routes>
-          <Route path="tickets" element={<DataProvider />} />
+          <Route path="tickets" element={<DataProvider obj='tickets' />} />
+          <Route path="users" element={<DataProvider obj='profiles' />} />
         </Routes>
       </BrowserRouter>
     );

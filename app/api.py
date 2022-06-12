@@ -1,6 +1,7 @@
 from typing import Optional
 
 from fastapi import FastAPI, WebSocket, Depends, HTTPException, status
+from fastapi.responses import Response
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from typing import Optional
 from psycopg2 import sql
@@ -10,15 +11,14 @@ from datetime import datetime, timedelta
 from typing import Union
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-import json
-import math
-import asyncio
-import random
+import diskcache as dc
 import re
 import os
+import io
 import uuid
 
 from .db_conn import Cursor
+from .img_gen import pyvomit128
 
 SECRET_KEY = os.environ.get("TCK_SECRET_KEY")
 ALGORITHM = "HS256"
@@ -149,6 +149,10 @@ class NewUser(BaseModel):
     is_admin: bool
 
 
+class PutUser(BaseModel):
+    username: str
+
+
 class Filter(NewFilter):
     filter_id: uuid.UUID
 
@@ -163,6 +167,12 @@ def create_admin():
                          is_admin=True,
                          password=os.environ.get('TCK_ADMIN_PASSWORD'))
     cur = Cursor()
+    query = sql.SQL(f"""
+    SELECT id FROM profiles WHERE username = %s
+    """)
+    cur.execute(query, (superadmin.username,))
+    if cur.rowcount > 0:
+        return
     query = sql.SQL(f"""
     INSERT INTO profiles (id, username, is_admin, display_name, pass_hash)
         VALUES (%s, %s, %s, %s, %s) 
@@ -500,11 +510,11 @@ async def get_me(user: User = Depends(get_current_user)):
 
 
 @app.put("/profile")
-async def put_me(user_data: NewUser, user: User = Depends(get_current_user)):
+async def put_me(user_data: PutUser, user: User = Depends(get_current_user)):
     cur = Cursor()
     query = sql.SQL(f"""
     UPDATE profiles 
-        SET username = %s 
+        SET display_name = %s 
         WHERE id = %s;
     """)
     cur.execute(query, (user_data.username, str(user.id),))
@@ -564,7 +574,7 @@ async def get_profile(user_id: uuid.UUID, user: User = Depends(get_current_user)
         raise credentials_exception
     cur = Cursor()
     query = sql.SQL(f"""
-    SELECT (username) 
+    SELECT (display_name) 
         FROM profiles
         WHERE id = %s;
     """)
@@ -578,11 +588,12 @@ async def list_profiles(user: User = Depends(get_current_user)):
         raise credentials_exception
     cur = Cursor()
     query = sql.SQL(f"""
-    SELECT (id, username) 
+    SELECT id, display_name
         FROM profiles;
     """)
     cur.execute(query)
-    return {'profiles': cur.fetchall()}
+    users = [{"user_id": user[0], "username": user[1]} for user in cur.fetchall()]
+    return {'users': users}
 
 
 # ACL
@@ -624,19 +635,18 @@ async def put_acl(user: User = Depends(get_current_user)):
     return {'success': True}
 
 
-@app.websocket('/ws')
-async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
-    start = datetime.utcnow()
-    rand = 0
-    while True:
-        then = datetime.utcnow() + datetime.timedelta(seconds=0.5)
-        data = []
-        while start < then:
-            rand = max(min(rand + (random.random() - 0.5) * 0.2, 1), - 1)
-            data.append([math.cos(start.timestamp()),
-                         math.sin(start.timestamp()),
-                         rand])
-            start += datetime.timedelta(milliseconds=100)
-        await websocket.send_text(json.dumps({'data': data}))
-        await asyncio.sleep(0.5)
+@app.get("/img/{uid}",
+         responses={
+             200: {
+                 "content": {"image/png": {}}
+             }
+         },
+        response_class=Response
+)
+async def get_uid_img(uid: uuid.UUID):
+    cache = dc.Cache()
+    if uid not in cache:
+        img_byte_arr = io.BytesIO()
+        pyvomit128(uid.int).save(img_byte_arr, format="PNG")
+        cache[uid] = img_byte_arr.getvalue()
+    return Response(cache[uid], media_type="image/png")

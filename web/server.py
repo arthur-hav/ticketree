@@ -33,12 +33,22 @@ for route, methods_desc in routes['endpoints'].items():
                 return infos
 
 
-@app.route("/", methods=['GET', 'POST'])
+@app.route('/tickets', methods=['GET'])
+async def tickets():
+    return await render_template('index.html')
+
+
+@app.route('/users', methods=['GET'])
+async def users():
+    return await render_template('index.html')
+
+
+@app.route("/login", methods=['GET', 'POST'])
 async def hello():
     if request.method == 'GET':
         csrf = base64.b64encode(urandom(32)).decode('utf-8')
         context = {'csrf': csrf}
-        resp = await make_response(await render_template("index.html", **context))
+        resp = await make_response(await render_template("login.html", **context))
         resp.set_cookie('csrf', csrf, httponly=True, secure=True, samesite='Strict')
         return resp
     elif request.method == 'POST':
@@ -47,7 +57,7 @@ async def hello():
         if cookie != form_data['csrf']:
             return redirect('/', 302)
         login_test = requests.post('https://app:8181/token', data={'username': form_data['username'],
-                                                                  'password': form_data['password']},
+                                                                   'password': form_data['password']},
                                    verify=verify_cert)
         if login_test.status_code != 200:
             return redirect('/', 302)
