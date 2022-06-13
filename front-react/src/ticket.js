@@ -1,3 +1,6 @@
+import { useQuery } from 'react-query'
+import Autocomplete from '@mui/material/Autocomplete'
+import TextField from '@mui/material/TextField'
 import TextareaAutosize from 'react-textarea-autosize';
 import React from "react";
 
@@ -108,7 +111,7 @@ function set_status(tck, set_ticket, all_tck, set_all_tck, dir){
 function put_ticket(ticket, set_ticket, all_tck, set_all_tck){
     var myHeaders = new Headers();
     myHeaders.append('Content-Type', 'application/json');
-    const url = `${process.env.REACT_APP_API_SERVER}/api/tickets`
+    const url = `${process.env.REACT_APP_API_SERVER}/api/tickets/${ticket.ticket_id}`
     const request = new Request(url, {method: 'PUT', body: JSON.stringify(ticket), headers: myHeaders});
     fetch(request);
     const new_tck = {tickets: all_tck.tickets.map((tck) => tck.ticket_id !== ticket.ticket_id ? tck : { ...ticket})}
@@ -150,6 +153,81 @@ class ImgIcon extends React.Component {
     }
 }
 
+class UserBadge extends React.Component {
+    constructor(props){
+        super(props);
+        this.state = {user_id: null, username: null};
+        for (var user_idx in this.props.user_data.users){
+            if (this.props.tck.assignee === this.props.user_data.users[user_idx].user_id){
+                this.state = {user_id: this.props.user_id, username:this.props.user_data.users[user_idx].username};
+                break;
+            }
+        }
+    }
+     shouldComponentUpdate(nextProps) {
+        if(nextProps.tck !== this.props.tck) {
+            var username = null;
+            for (var user_idx in this.props.user_data.users){
+                if (nextProps.tck.assignee === this.props.user_data.users[user_idx].user_id){
+                    username = this.props.user_data.users[user_idx].username;
+                    break;
+                }
+            }
+            this.setState({user_id: nextProps.tck.assignee, username: username})
+        }
+        return true;
+    }
+    onchange (event, value, tck, set_tck, all_tck, set_all_tck){
+        if (!value){
+            this.setState({user_id: null, username: null});
+            tck.assignee = null;
+        }
+        for (var user_idx in this.props.user_data.users){
+            if (value == this.props.user_data.users[user_idx].username){
+                this.setState({user_id: this.props.user_data.users[user_idx].user_id});
+                tck.assignee = this.props.user_data.users[user_idx].user_id;
+                break;
+            }
+        }
+        this.setState({username: value});
+        put_ticket(tck, set_tck, all_tck, set_all_tck);
+    }
+    render(){
+        return (
+            <span className='user-badge'>
+                <ImgIcon img_id={this.state.user_id} />
+                <UserCombo username={this.state.username} onChange={(event, value) => this.onchange(
+                     event, value, this.props.tck, this.props.set_tck, this.props.all_tck, this.props.set_all_tck)}
+                 user_data={this.props.user_data} />
+            </span>
+        );
+    }
+}
+
+
+const UserCombo: React.FC<props> = ({
+    username,
+    user_data,
+    onChange
+    }) => {
+
+    if (!user_data) return;
+    var options = []
+    for (var user_idx in user_data.users) {
+        options.push(user_data.users[user_idx].username)
+    }
+    return (
+        <Autocomplete
+          disablePortal
+          options={options}
+          value={username}
+          onChange={onChange}
+          sx={{ width: '320px' }}
+          renderInput={(params) => <TextField {...params} label="Assignee" variant="standard"/>}
+        />
+    );
+}
+
 class DescArea extends React.Component {
     constructor(props) {
         super(props);
@@ -181,6 +259,8 @@ export const PaneLeft: React.FC<Props> = ({
   all_tck,
   set_all_tck
 }) => {
+      const { isLoading, error, data } = useQuery('profilesData', () =>
+          fetch(`${process.env.REACT_APP_API_SERVER}/api/profiles`).then(res => res.json()))
       if (!ticket){
         return (
           <div className="pane-left">
@@ -200,7 +280,7 @@ export const PaneLeft: React.FC<Props> = ({
                     onClick={() => set_ticket(son_tck)}>
                     <div className="flex1 title-mini">{son_tck.title}</div>
                     <div className="flexbtn icons">
-                        <img src={progress_obj[ticket.status]} alt={ticket.status}></img>
+                        <img src={progress_obj[son_tck.status]} alt={son_tck.status}></img>
                     </div>
                 </div>
             )
@@ -214,7 +294,7 @@ export const PaneLeft: React.FC<Props> = ({
                     onClick={() => set_ticket(parent_tck)}>
                     <div className="flex1 title-mini">{parent_tck.title}</div>
                     <div className="flexbtn icons">
-                        <img src={progress_obj[ticket.status]} alt={ticket.status}></img>
+                        <img src={progress_obj[parent_tck.status]} alt={parent_tck.status}></img>
                     </div>
                 </div>
             )
@@ -236,10 +316,10 @@ export const PaneLeft: React.FC<Props> = ({
           </span>
         </div>
         <DescArea ticket={ticket} set_ticket={set_ticket} all_tck={all_tck} set_all_tck={set_all_tck} />
-        <div className="flex">
+        <div>
           <div>
-          <span>Assignee: </span>
-          <ImgIcon img_id={ticket.assignee} />
+          <UserBadge user_data={data} tck={ticket} set_tck={set_ticket}
+           all_tck={all_tck} set_all_tck={set_all_tck} />
           </div>
           <div>
           <span>Owner: </span>

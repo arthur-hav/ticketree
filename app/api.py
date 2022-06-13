@@ -372,8 +372,8 @@ async def post_ticket(ticket: NewTicket, user: User = Depends(get_current_user))
     return {'success': True, 'ticket_id': new_uuid}
 
 
-@app.put("/tickets/")
-async def put_ticket(ticket: Ticket, user: User = Depends(get_current_user)):
+@app.put("/tickets/{ticket_id}")
+async def put_ticket(ticket: NewTicket, ticket_id: uuid.UUID, user: User = Depends(get_current_user)):
     if user.is_admin:
         acls = ['#true']
     else:
@@ -386,13 +386,13 @@ async def put_ticket(ticket: Ticket, user: User = Depends(get_current_user)):
     acl_filters = [FilterExpression(acl) for acl in acls]
     if not acl_filters:
         return {'success': False}
-    if not all(acl_filter.evaluate(ticket) for acl_filter in acl_filters):
+    if not all(acl_filter.evaluate(Ticket(ticket_id=ticket_id, **ticket.dict())) for acl_filter in acl_filters):
         return {'success': False}
     cur = Cursor()
     query = sql.SQL("""
     SELECT title, type, description, assignee, organization, parent_id, status FROM ticket WHERE id = %s;
     """)
-    cur.execute(query, (str(ticket.ticket_id),))
+    cur.execute(query, (str(ticket_id),))
     cur_ticket_data = cur.fetchone()
     cur_ticket = NewTicket(
         title=cur_ticket_data[0],
@@ -425,7 +425,7 @@ async def put_ticket(ticket: Ticket, user: User = Depends(get_current_user)):
                  str(ticket.organization) if ticket.organization else None,
                  str(ticket.parent_id) if ticket.parent_id else None,
                  ticket.status,
-                 str(ticket.ticket_id)
+                 str(ticket_id)
                  ))
     return {'success': cur.rowcount}
 
@@ -554,7 +554,7 @@ async def post_profile(user_data: NewUser,
 
 @app.put("/profiles/{user_id}")
 async def put_profile(user_id: uuid.UUID,
-                      user_data: NewUser,
+                      user_data: PutUser,
                       user: User = Depends(get_current_user)):
     if not user.is_admin:
         raise credentials_exception
@@ -564,7 +564,7 @@ async def put_profile(user_id: uuid.UUID,
         SET display_name = %s 
         WHERE id = %s;
     """)
-    cur.execute(query, (user_data.username, user_id,))
+    cur.execute(query, (user_data.username, str(user_id),))
     return {'success': True}
 
 
@@ -589,7 +589,8 @@ async def list_profiles(user: User = Depends(get_current_user)):
     cur = Cursor()
     query = sql.SQL(f"""
     SELECT id, display_name
-        FROM profiles;
+        FROM profiles
+        ORDER BY id ASC;
     """)
     cur.execute(query)
     users = [{"user_id": user[0], "username": user[1]} for user in cur.fetchall()]

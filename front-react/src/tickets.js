@@ -3,6 +3,13 @@ import { useState } from "react";
 import React from "react";
 import { export_tck } from "./ticket.js"
 import { export_user } from "./users.js"
+import { ThemeProvider, createTheme } from '@mui/material/styles';
+
+const darkTheme = createTheme({
+  palette: {
+    mode: 'dark',
+  },
+});
 
 const queryClient = new QueryClient()
 
@@ -10,7 +17,9 @@ const queryClient = new QueryClient()
 export default function DataProvider(obj) {
    return (
      <QueryClientProvider client={queryClient}>
-       <Example obj={obj}/>
+       <ThemeProvider theme={darkTheme}>
+         <Example obj={obj}/>
+       </ThemeProvider>
      </QueryClientProvider>
    )
 }
@@ -63,11 +72,11 @@ function Example(obj) {
       fetch(`${process.env.REACT_APP_API_SERVER}/api/${obj.obj.obj}`).then(res => res.json())
     )
 
+
     if (data && typeof(all_tck) === 'undefined'){
         set_all_tck(data)
         return
     }
-    console.log(data)
     if (isLoading) return 'Loading...'
 
     if (error) return 'An error has occurred: ' + error.message

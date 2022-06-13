@@ -3,7 +3,7 @@
     "tickets": [
       {
         "ticket_id": "667d7452-21dd-42e3-8737-0bd9ee50c1e9",
-        "assignee": "667d7454-21dd-42e3-8737-0bd9ee50c1e9",
+        "assignee": "667d7452-21dd-42e3-8737-0bd9ee50c1e9",
         "title": "This is a client side generated title This is a client side generated title This is a client side generated title This is a client side generated title",
         "description": "Lorem ipsum",
         "status": "In progress"
@@ -14,6 +14,18 @@
         "title": "This is another a client side generated title",
         "description": "Lorem ipsum lorem ipsum",
         "status": "Open"
+      }
+    ]
+  },
+  "profiles": {
+    "users": [
+      {
+        "user_id": "667d7452-21dd-42e3-8737-0bd9ee50c1e9",
+        "username": "Arthur Havlicek"
+      },
+      {
+        "user_id": "7c563f4a-2bcf-4aab-a135-e73a59fcfbdf",
+        "username": "Sebastien Sabio"
       }
     ]
   }

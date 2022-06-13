@@ -59,7 +59,7 @@ function set_username(user, set_ticket, event, all_tck, set_all_tck){
 function put_user(user, set_ticket, all_tck, set_all_tck){
     var myHeaders = new Headers();
     myHeaders.append('Content-Type', 'application/json');
-    const url = `${process.env.REACT_APP_API_SERVER}/api/users`
+    const url = `${process.env.REACT_APP_API_SERVER}/api/profiles/${user.user_id}`
     const request = new Request(url, {method: 'PUT', body: JSON.stringify(user), headers: myHeaders});
     fetch(request);
     const new_tck = {users: all_tck.users.map((usr) => usr.user_id !== user.user_id ? usr : { ...user})}
