@@ -15,6 +15,7 @@ class App extends React.Component {
         <Routes>
           <Route path="tickets" element={<DataProvider obj='tickets' />} />
           <Route path="users" element={<DataProvider obj='profiles' />} />
+          <Route path="organizations" element={<DataProvider obj='organizations' />} />
         </Routes>
       </BrowserRouter>
     );

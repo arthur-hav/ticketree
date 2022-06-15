@@ -8,7 +8,7 @@ from psycopg2 import sql
 from pydantic import SecretStr, BaseModel
 from html import escape, unescape
 from datetime import datetime, timedelta
-from typing import Union
+from typing import Union, Tuple
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 import diskcache as dc
@@ -134,7 +134,7 @@ class NewTicket(BaseModel):
     description: Optional[str]
     assignee: Optional[uuid.UUID]
     organization: Optional[uuid.UUID]
-    parent_id: Optional[uuid.UUID]
+    parent: Optional[uuid.UUID]
     status: str
 
 
@@ -159,6 +159,15 @@ class Filter(NewFilter):
 
 class Ticket(NewTicket):
     ticket_id: uuid.UUID
+
+
+class NewOrg(BaseModel):
+    display_name: str
+    parent: Union[uuid.UUID, None]
+
+
+class Uuid_list(BaseModel):
+    lst: Tuple[uuid.UUID, ...]
 
 
 def create_admin():
@@ -198,6 +207,7 @@ class FilterToken:
         'in': r'#in',
         'gt': r'#gt',
         'lt': r'#lt',
+        'me': r'#me',
         'pleft': r'#\(',
         'pright': r'#\)',
         'true': r'#true',
@@ -210,7 +220,7 @@ class FilterToken:
 
 
 class FilterExpression:
-    def __init__(self, flter: str):
+    def __init__(self, user: uuid.UUID, flter: str):
         self.tokens = []
         for tok_type, tok_re in FilterToken.types.items():
             for match in re.finditer(tok_re, flter):
@@ -220,6 +230,7 @@ class FilterExpression:
                         break
                 else:
                     self.tokens.append((tok_type, match))
+        self.user_id = user
         self.tokens.sort(key=lambda it: it[1].start())
 
     def store_str(self):
@@ -252,6 +263,8 @@ class FilterExpression:
             return self.eval_chain(obj, True, tokens)
         if tok[0] == 'false':
             return self.eval_chain(obj, False, tokens)
+        if tok[0] == 'me':
+            return self.eval_chain(obj, self.user_id, tokens)
         if tok[0] == 'not':
             return not self.evaluate(obj, tokens)
         if tok[0] == 'column':
@@ -310,12 +323,12 @@ async def get_ticket(user: User = Depends(get_current_user)):
         """)
         cur.execute(query, (str(user.id),))
         acls = cur.fetchall()
-    acl_filters = [FilterExpression(acl) for acl in acls]
+    acl_filters = [FilterExpression(user.id, acl) for acl in acls]
     if not acl_filters:
         return {'tickets': [], 'success': True}
     cur = Cursor()
     query = sql.SQL("""
-    SELECT id, title, type, description, assignee, organization, parent_id, status FROM ticket;
+    SELECT id, title, type, description, assignee, organization, parent, status FROM ticket;
     """)
     cur.execute(query)
     ret_tickets = []
@@ -327,7 +340,7 @@ async def get_ticket(user: User = Depends(get_current_user)):
             description=ticket_data[3],
             assignee=ticket_data[4],
             organization=ticket_data[5],
-            parent_id=ticket_data[6],
+            parent=ticket_data[6],
             status=ticket_data[7]
         )
         if not all(acl_filter.evaluate(t) for acl_filter in acl_filters):
@@ -347,14 +360,14 @@ async def post_ticket(ticket: NewTicket, user: User = Depends(get_current_user))
         """)
         cur.execute(query, (str(user.id),))
         acls = cur.fetchall()
-    acl_filters = [FilterExpression(acl) for acl in acls]
+    acl_filters = [FilterExpression(user.id, acl) for acl in acls]
     if not acl_filters:
         return {'success': False}
     if not all(acl_filter.evaluate(ticket) for acl_filter in acl_filters):
         return {'success': False}
     cur = Cursor()
     query = sql.SQL("""
-    INSERT INTO ticket (id, owner_id, title, type, description, assignee, organization, parent_id, status) 
+    INSERT INTO ticket (id, owner, title, type, description, assignee, organization, parent, status) 
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
     """)
     new_uuid = uuid.uuid4()
@@ -366,7 +379,7 @@ async def post_ticket(ticket: NewTicket, user: User = Depends(get_current_user))
                  ticket.description,
                  str(ticket.assignee) if ticket.assignee else None,
                  str(ticket.organization) if ticket.organization else None,
-                 str(ticket.parent_id) if ticket.parent_id else None,
+                 str(ticket.parent) if ticket.parent else None,
                  ticket.status
                  ))
     return {'success': True, 'ticket_id': new_uuid}
@@ -383,14 +396,14 @@ async def put_ticket(ticket: NewTicket, ticket_id: uuid.UUID, user: User = Depen
         """)
         cur.execute(query, (str(user.id),))
         acls = cur.fetchall()
-    acl_filters = [FilterExpression(acl) for acl in acls]
+    acl_filters = [FilterExpression(user.id, acl) for acl in acls]
     if not acl_filters:
         return {'success': False}
     if not all(acl_filter.evaluate(Ticket(ticket_id=ticket_id, **ticket.dict())) for acl_filter in acl_filters):
         return {'success': False}
     cur = Cursor()
     query = sql.SQL("""
-    SELECT title, type, description, assignee, organization, parent_id, status FROM ticket WHERE id = %s;
+    SELECT title, type, description, assignee, organization, parent, status FROM ticket WHERE id = %s;
     """)
     cur.execute(query, (str(ticket_id),))
     cur_ticket_data = cur.fetchone()
@@ -400,7 +413,7 @@ async def put_ticket(ticket: NewTicket, ticket_id: uuid.UUID, user: User = Depen
         description=cur_ticket_data[2],
         assignee=uuid.UUID(cur_ticket_data[3]) if cur_ticket_data[3] else None,
         organization=uuid.UUID(cur_ticket_data[4]) if cur_ticket_data[4] else None,
-        parent_id=uuid.UUID(cur_ticket_data[5]) if cur_ticket_data[5] else None,
+        parent=uuid.UUID(cur_ticket_data[5]) if cur_ticket_data[5] else None,
         status=cur_ticket_data[6],
     )
     if not all(acl_filter.evaluate(cur_ticket) for acl_filter in acl_filters):
@@ -413,7 +426,7 @@ async def put_ticket(ticket: NewTicket, ticket_id: uuid.UUID, user: User = Depen
         description = %s, 
         assignee = %s,
         organization = %s,
-        parent_id = %s,
+        parent = %s,
         status = %s
         WHERE id = %s
         ;""")
@@ -423,7 +436,7 @@ async def put_ticket(ticket: NewTicket, ticket_id: uuid.UUID, user: User = Depen
                  ticket.description,
                  str(ticket.assignee) if ticket.assignee else None,
                  str(ticket.organization) if ticket.organization else None,
-                 str(ticket.parent_id) if ticket.parent_id else None,
+                 str(ticket.parent) if ticket.parent else None,
                  ticket.status,
                  str(ticket_id)
                  ))
@@ -436,7 +449,7 @@ async def put_ticket(ticket: NewTicket, ticket_id: uuid.UUID, user: User = Depen
 async def post_filter(filter: NewFilter, user: User = Depends(get_current_user)):
     cur = Cursor()
     query = sql.SQL("""
-    INSERT INTO filter (id, owner_id, expression) 
+    INSERT INTO filter (id, owner, expression) 
         VALUES (%s, %s, %s);
     """)
     cur.execute(query,
@@ -452,13 +465,13 @@ async def put_filter(filter: Filter, user: User = Depends(get_current_user)):
     if user.is_admin:
         where = 'TRUE'
     else:
-        where = "owner_id = '{owner_id}'"
+        where = "owner = '{owner}'"
     cur = Cursor()
     query = sql.SQL(f"""
-    UPDATE filter (id, owner_id, expression)
+    UPDATE filter (id, owner, expression)
         SET expression = %s
         WHERE id = %s AND {where};
-    """.format(owner_id=str(user.id)))
+    """.format(owner=str(user.id)))
     cur.execute(query, (FilterExpression(filter.expression).store_str(), filter.filter_id))
     return {'success': True}
 
@@ -468,13 +481,13 @@ async def get_filter(user: User = Depends(get_current_user)):
     if user.is_admin:
         where = 'TRUE'
     else:
-        where = "owner_id = '{owner_id}'"
+        where = "owner = '{owner}'"
     cur = Cursor()
     query = sql.SQL(f"""
-    SELECT (id, owner_id, expression) 
+    SELECT (id, owner, expression) 
         FROM filter
         WHERE {where};
-    """.format(owner_id=sql.Identifier(str(user.id))))
+    """.format(owner=sql.Identifier(str(user.id))))
     cur.execute(query)
     return {'success': True, 'filters': cur.fetchall()}
 
@@ -484,13 +497,13 @@ async def delete_filter(filter_id: uuid.UUID, user: User = Depends(get_current_u
     if user.is_admin:
         where = 'TRUE'
     else:
-        where = "owner_id = '{owner_id}'"
+        where = "owner = '{owner}'"
     cur = Cursor()
     query = sql.SQL(f"""
     DELETE
         FROM filter
         WHERE id = %s AND {where};
-    """.format(owner_id=sql.Identifier(str(user.id))))
+    """.format(owner=sql.Identifier(str(user.id))))
     cur.execute(query, (filter_id,))
     return {'success': True, 'filters': cur.fetchall()}
 
@@ -506,7 +519,7 @@ async def get_me(user: User = Depends(get_current_user)):
         WHERE id = %s;
     """)
     cur.execute(query, (str(user.id),))
-    return {'username': cur.fetchone()}
+    return {'username': cur.fetchone(), 'user_id': user.id}
 
 
 @app.put("/profile")
@@ -597,7 +610,132 @@ async def list_profiles(user: User = Depends(get_current_user)):
     return {'users': users}
 
 
+# Organization
+
+
+@app.delete("/organization/{user_id}")
+async def delete_organization(user_id: uuid.UUID, user: User = Depends(get_current_user)):
+    if not user.is_admin:
+        raise credentials_exception
+    cur = Cursor()
+    query = sql.SQL(f"""
+    DELETE organizations 
+        WHERE id = %s;
+    """)
+    cur.execute(query, (user_id,))
+    return {'success': True}
+
+
+@app.post("/organization")
+async def post_organization(org: NewOrg, user: User = Depends(get_current_user)):
+    if not user.is_admin:
+        raise credentials_exception
+    cur = Cursor()
+    query = sql.SQL(f"""
+    INSERT INTO organizations (id, display_name, parent)
+        VALUES (%s, %s, %s) 
+    """)
+    organization_id = uuid.uuid4()
+    cur.execute(query, (str(organization_id),
+                        org.display_name,
+                        str(org.parent) if org.parent else None))
+    return {'success': True, 'organization_id': organization_id}
+
+
+@app.put("/organization/{org_id}")
+async def put_organization(org_id: uuid.UUID, org_data: NewOrg, user: User = Depends(get_current_user)):
+    if not user.is_admin:
+        raise credentials_exception
+    cur = Cursor()
+    query = sql.SQL(f"""
+    UPDATE organizations 
+        SET display_name = %s,
+            parent = %s
+        WHERE id = %s;
+    """)
+    cur.execute(query, (org_data.display_name, str(org_data.parent) if org_data.parent else None, str(org_id),))
+    return {'success': True}
+
+
+@app.get("/organizations/{user_id}")
+async def get_organization(user_id: uuid.UUID, user: User = Depends(get_current_user)):
+    if not user.is_admin:
+        raise credentials_exception
+    cur = Cursor()
+    query = sql.SQL(f"""
+    SELECT display_name, parent
+        FROM organizations
+        WHERE id = %s;
+    """)
+    cur.execute(query, (user_id,))
+    display_name, parent = cur.fetchone()
+    return {'display_name': display_name, 'parent': parent}
+
+
+@app.get("/organizations")
+async def list_organizations(user: User = Depends(get_current_user)):
+    if not user.is_admin:
+        raise credentials_exception
+    cur = Cursor()
+    query = sql.SQL(f"""
+    SELECT id, display_name, parent
+        FROM organizations
+        ORDER BY id ASC;
+    """)
+    cur.execute(query)
+    orgs = [{"organization_id": org[0], "display_name": org[1], 'parent': org[2]} for org in cur.fetchall()]
+    return {'organizations': orgs}
+
+
+@app.get("/user_organization")
+async def user_organization(user: User = Depends(get_current_user)):
+    if not user.is_admin:
+        raise credentials_exception
+    cur = Cursor()
+    query = sql.SQL(f"""
+    SELECT organization_id, user_id
+        FROM user_organization
+        ORDER BY organization_id, user_id;
+    """)
+    cur.execute(query)
+    users = [{"organization_id": org_user[0], "user_id": org_user[1]} for org_user in cur.fetchall()]
+    return {'user_organization': users}
+
+
+@app.put("/user_organization/{user_id}")
+async def put_organization_list(organization_list: Uuid_list, user_id: uuid.UUID,
+                                user: User = Depends(get_current_user)):
+    if not user.is_admin:
+        raise credentials_exception
+    cur = Cursor()
+    query = sql.SQL(f"""
+    DELETE FROM user_organization WHERE user_id = %s;
+    """)
+    cur.execute(query, (str(user_id),))
+    organization_list.lst = set(organization_list.lst)
+    if organization_list.lst:
+        value_list = (tuple(str(user_id) for org in organization_list.lst), tuple(str(org) for org in organization_list.lst))
+        cur.execute("INSERT INTO user_organization (user_id, organization_id) VALUES %s;", (value_list,))
+    return {'success': True}
+
+
+@app.put("/organization_user/{organization_id}")
+async def put_user_list(user_list: Uuid_list, organization_id: uuid.UUID, user: User = Depends(get_current_user)):
+    if not user.is_admin:
+        raise credentials_exception
+    cur = Cursor()
+    query = sql.SQL(f"""
+    DELETE FROM user_organization WHERE organization_id = %s;
+    """)
+    cur.execute(query, (str(organization_id),))
+    user_list.lst = set(user_list.lst)
+    if user_list.lst:
+        value_list = (tuple(str(organization_id) for org in user_list.lst), tuple(str(org) for org in user_list.lst))
+        cur.execute("INSERT INTO user_organization (organization_id, user_id) VALUES %s;", (value_list,))
+    return {'success': True}
+
 # ACL
+
 
 @app.get("/acl")
 async def get_acl(user: User = Depends(get_current_user)):

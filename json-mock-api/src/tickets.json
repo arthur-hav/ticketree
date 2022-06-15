@@ -28,5 +28,32 @@
         "username": "Sebastien Sabio"
       }
     ]
+  },
+  "profile": {
+    "username": "Arthur Havlicek",
+    "user_id": "667d7452-21dd-42e3-8737-0bd9ee50c1e9"
+  },
+  "organizations": {
+    "organizations": [
+      {
+        "display_name": "MyCompany",
+        "parent": null,
+        "organization_id": "128e4e0b-0784-4cb0-bf00-3b8c0b648991"
+      },
+      {
+        "display_name": "MyTeam",
+        "parent": "128e4e0b-0784-4cb0-bf00-3b8c0b648991",
+        "organization_id": "054ab8e0-9e10-481d-addb-14ab60274355"
+      }
+    ]
+  },
+  "user_organization": {
+    "user_organization": [{
+      "organization_id": "054ab8e0-9e10-481d-addb-14ab60274355",
+      "user_id": "7c563f4a-2bcf-4aab-a135-e73a59fcfbdf"
+    }, {
+      "organization_id": "128e4e0b-0784-4cb0-bf00-3b8c0b648991",
+      "user_id": "667d7452-21dd-42e3-8737-0bd9ee50c1e9"
+    }]
   }
 }

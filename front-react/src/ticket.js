@@ -3,6 +3,7 @@ import Autocomplete from '@mui/material/Autocomplete'
 import TextField from '@mui/material/TextField'
 import TextareaAutosize from 'react-textarea-autosize';
 import React from "react";
+import { ImgIcon } from "./components/imgicon.js"
 
 const status_list = ["Canceled", "Open", "In progress", "Done"]
 const new_ticket = {
@@ -11,8 +12,9 @@ const new_ticket = {
     description: 'Description',
     organization: null,
     assignee: null,
-    parent_id: null,
-    ticket_type: 'incident'
+    parent: null,
+    ticket_type: 'incident',
+    owner: null
 }
 const progress_obj = {
     Open: process.env.PUBLIC_URL + "/static/img/Open.png",
@@ -23,9 +25,9 @@ progress_obj["In progress"] = process.env.PUBLIC_URL + "/static/img/Inprogress.p
 
 
 
-function create_ticket_element(all_tck, set_all_tck){
+function create_ticket_element(all_tck, set_all_tck, my_profile){
     return (
-       <button className="ticket-row add-ticket" onClick={() => create_ticket(new_ticket, all_tck, set_all_tck)}>
+       <button className="ticket-row add-ticket" onClick={() => create_ticket(new_ticket, all_tck, set_all_tck, my_profile)}>
          <h4>Add a new ticket</h4>
        </button>
     );
@@ -50,10 +52,10 @@ return (
            );
 }
 
-function create_son(parent_tck, all_tck, set_all_tck){
+function create_son(parent_tck, all_tck, set_all_tck, my_profile){
     var son_tck = { ...new_ticket}
-    son_tck.parent_id = parent_tck.ticket_id;
-    create_ticket(son_tck, all_tck, set_all_tck);
+    son_tck.parent = parent_tck.ticket_id;
+    create_ticket(son_tck, all_tck, set_all_tck, my_profile);
 }
 
 export function tickets_from_json(all_tck, search, set_selected){
@@ -80,7 +82,7 @@ export function tickets_from_json(all_tck, search, set_selected){
    return tickets;
 }
 
-function create_ticket(ticket, all_tck, set_all_tck){
+function create_ticket(ticket, all_tck, set_all_tck, my_profile){
     var myHeaders = new Headers();
     myHeaders.append('Content-Type', 'application/json');
     const url = `${process.env.REACT_APP_API_SERVER}/api/tickets`
@@ -88,6 +90,7 @@ function create_ticket(ticket, all_tck, set_all_tck){
     fetch (request).then(response => response.json()).then(data => {
         var ticket_obj = { ...ticket}
         ticket_obj.ticket_id = data.ticket_id;
+        ticket_obj.owner = my_profile.user_id
         set_all_tck({tickets: all_tck.tickets.concat([ticket_obj])});
     });
 
@@ -145,13 +148,6 @@ class TitleArea extends React.Component {
     }
 }
 
-class ImgIcon extends React.Component {
-    render() {
-        if (!this.props.img_id) return;
-        const img_src = `${process.env.REACT_APP_API_SERVER}/img/${this.props.img_id}`
-        return <img src={img_src} alt={this.props.img_id}></img>
-    }
-}
 
 class UserBadge extends React.Component {
     constructor(props){
@@ -183,7 +179,7 @@ class UserBadge extends React.Component {
             tck.assignee = null;
         }
         for (var user_idx in this.props.user_data.users){
-            if (value == this.props.user_data.users[user_idx].username){
+            if (value === this.props.user_data.users[user_idx].username){
                 this.setState({user_id: this.props.user_data.users[user_idx].user_id});
                 tck.assignee = this.props.user_data.users[user_idx].user_id;
                 break;
@@ -257,11 +253,12 @@ export const PaneLeft: React.FC<Props> = ({
   ticket,
   set_ticket,
   all_tck,
-  set_all_tck
+  set_all_tck,
+  my_profile
 }) => {
       const { isLoading, error, data } = useQuery('profilesData', () =>
           fetch(`${process.env.REACT_APP_API_SERVER}/api/profiles`).then(res => res.json()))
-      if (!ticket){
+      if (!ticket || isLoading || error){
         return (
           <div className="pane-left">
             <h4>Select a ticket to see its details</h4>
@@ -271,7 +268,7 @@ export const PaneLeft: React.FC<Props> = ({
       var sons = []
       var parents = [];
       for (var tck_idx in all_tck.tickets){
-        if(ticket.ticket_id && all_tck.tickets[tck_idx].parent_id === ticket.ticket_id){
+        if(ticket.ticket_id && all_tck.tickets[tck_idx].parent === ticket.ticket_id){
             const son_tck = all_tck.tickets[tck_idx]
 
             sons.push(
@@ -285,7 +282,7 @@ export const PaneLeft: React.FC<Props> = ({
                 </div>
             )
         }
-        else if (ticket.parent_id && all_tck.tickets[tck_idx].ticket_id === ticket.parent_id){
+        else if (ticket.parent && all_tck.tickets[tck_idx].ticket_id === ticket.parent){
             const parent_tck = all_tck.tickets[tck_idx]
 
             parents.push(
@@ -328,7 +325,7 @@ export const PaneLeft: React.FC<Props> = ({
         </div>
         {parents}
         <div className="sons-container">
-          <button className="add-ticket ticket-row-mini" onClick={() => create_son(ticket, all_tck, set_all_tck)}>
+          <button className="add-ticket ticket-row-mini" onClick={() => create_son(ticket, all_tck, set_all_tck, my_profile)}>
             <span>Create son</span>
           </button>
           {sons}

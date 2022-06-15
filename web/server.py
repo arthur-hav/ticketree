@@ -43,6 +43,11 @@ async def users():
     return await render_template('index.html')
 
 
+@app.route('/organizations', methods=['GET'])
+async def organizations():
+    return await render_template('index.html')
+
+
 @app.route("/login", methods=['GET', 'POST'])
 async def hello():
     if request.method == 'GET':

@@ -247,13 +247,20 @@ img {
     display: flex;
 
 }
-.navbar a {
-    flex: 1;
-    max-width: 100px;
+
+.navbar .filler {
+    flex: 1 1;
+}
+
+.navbar a, .navbar span {
     line-height: 48px;
+    color: #f2f0cc;
+    padding: 0 10px;
+}
+
+.navbar a {
     border: 2px solid #254425;
     margin-right: -2px;
-    color: #f2f0cc;
     text-align: center;
 }
 
@@ -273,11 +280,5 @@ h5, h4, h3, h2, h1 {
 .user-badge {
     border-radius: 12px;
     display: inline-block;
-    padding: 0 12px;
     line-height: 24px;
-}
-
-.user-badge input {
-    background-color: rgba(0,0,0,0);
-    border: 0px;
 }

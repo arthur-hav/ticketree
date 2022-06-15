@@ -3,20 +3,21 @@ CREATE TABLE ticket (
     title TEXT,
     type TEXT,
     description TEXT,
-    owner_id TEXT,
+    owner TEXT,
     assignee TEXT,
     organization TEXT,
-    parent_id TEXT,
+    parent TEXT,
     status TEXT
 );
 CREATE TABLE filter (
     id TEXT,
-    owner_id TEXT,
+    owner TEXT,
     expression TEXT
 );
-CREATE TABLE organization (
+CREATE TABLE organizations (
     id TEXT,
-    parent_id TEXT
+    display_name TEXT,
+    parent TEXT
 );
 CREATE TABLE profiles (
     id TEXT,
