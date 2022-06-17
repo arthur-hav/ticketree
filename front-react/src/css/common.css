@@ -282,3 +282,12 @@ h5, h4, h3, h2, h1 {
     display: inline-block;
     line-height: 24px;
 }
+
+.pw-container label {
+    width:100px;
+    display:inline-block;
+}
+.pw-container input {
+    width: calc(100% - 120px);
+    display:inline-block;
+}

@@ -77,7 +77,6 @@ function Example(obj) {
       fetch(`${process.env.REACT_APP_API_SERVER}/api/profile`).then(res => res.json())
     )
 
-
     if (data_query.data && typeof(all_tck) === 'undefined'){
         set_all_tck(data_query.data)
         return

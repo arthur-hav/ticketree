@@ -33,11 +33,12 @@ class Users extends React.Component{
         if (props.user_org_data && props.user_data.data.users){
             for (var user_org_idx in props.user_org_data.user_organization) {
                 var user_org = props.user_org_data.user_organization[user_org_idx]
-                if (user_org.organization_id === props.organization.organization_id){
+                if (user_org.organization_id === props.organization.organization_id
+                    && user_org.is_organization_admin === this.props.admin){
                     var label = "Undefined"
                     for (var user_idx in props.user_data.data.users) {
                         if (user_org.user_id === props.user_data.data.users[user_idx].user_id){
-                            label = props.user_data.data.users[user_idx].username
+                            label = props.user_data.data.users[user_idx].display_name
                         }
                     }
                     current_user_org.push({value: props.user_org_data.user_organization[user_org_idx].user_id,
@@ -52,7 +53,7 @@ class Users extends React.Component{
         super(props);
         var options = [];
         if (props.user_data.data.users){
-            options = props.user_data.data.users.map((user) => { return {label: user.username, value: user.user_id}})
+            options = props.user_data.data.users.map((user) => { return {label: user.display_name, value: user.user_id}})
         }
         this.state = {value: this.upValue(props), options: options}
     }
@@ -73,7 +74,8 @@ class Users extends React.Component{
     render() {
         return <Select isMulti="true" options={this.state.options} styles={customStyles} value={this.state.value}
             onChange={this.updateValue}
-            onBlur={() => set_user(this.state.value, this.props.organization, this.props.user_org_data, this.props.set_user_org_data)}/>
+            onBlur={() => set_user(this.state.value, this.props.organization, this.props.user_org_data,
+                                   this.props.set_user_org_data, this.props.admin)}/>
     }
 }
 
@@ -125,11 +127,13 @@ function set_display_name(organization, set_ticket, event, all_tck, set_all_tck)
     put_organization(organization, set_ticket, all_tck, set_all_tck);
 }
 
-function set_user(value, organization, user_org_data, set_user_org_data){
+function set_user(value, organization, user_org_data, set_user_org_data, admin){
     var new_user_data = {user_organization: value.map((option) => {
-        return {user_id: option.value, organization_id: organization.organization_id}})}
+        return {user_id: option.value, organization_id: organization.organization_id, is_organization_admin: admin}})}
     for (var idx in user_org_data.user_organization) {
-        if (user_org_data.user_organization[idx].organization_id !== organization.organization_id){
+        console.log(admin, user_org_data.user_organization[idx].is_organization_admin)
+        if (user_org_data.user_organization[idx].organization_id !== organization.organization_id
+            || user_org_data.user_organization[idx].is_organization_admin !== admin){
             new_user_data.user_organization.push(user_org_data.user_organization[idx])
         }
     }
@@ -138,7 +142,7 @@ function set_user(value, organization, user_org_data, set_user_org_data){
     myHeaders.append('Content-Type', 'application/json');
     const url = `${process.env.REACT_APP_API_SERVER}/api/organization_user/${organization.organization_id}`
     const request = new Request(url, {method: 'PUT', body: JSON.stringify(
-           {lst: value.map((val) => val.value)}), headers: myHeaders});
+           {lst: value.map((val) => val.value), is_organization_admin: admin}), headers: myHeaders});
     fetch(request);
 }
 
@@ -224,8 +228,12 @@ const PaneLeft: React.FC<Props> = ({
           <ImgIcon img_id={ticket.organization_id} />
         </div>
         <DisplayNameArea organization={ticket} set_ticket={set_ticket} all_tck={all_tck} set_all_tck={set_all_tck}/>
+        <span>Organization members: </span>
         <Users user_data={user_data} user_org_data={user_org_data} set_user_org_data={set_user_org_data}
-          organization={ticket} />
+          organization={ticket} admin={false} />
+        <span>Organization administrators: </span>
+        <Users user_data={user_data} user_org_data={user_org_data} set_user_org_data={set_user_org_data}
+          organization={ticket} admin={true} />
           <button className="add-ticket ticket-row-mini" onClick={() => create_son(ticket, all_tck, set_all_tck, my_profile)}>
             <span>Create son</span>
           </button>

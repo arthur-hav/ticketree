@@ -4,6 +4,18 @@ import TextField from '@mui/material/TextField'
 import TextareaAutosize from 'react-textarea-autosize';
 import React from "react";
 import { ImgIcon } from "./components/imgicon.js"
+import Select from 'react-select'
+
+const customStyles = {
+  menu: (provided, state) => ({
+    ...provided,
+    backgroundColor: "#1f441f",
+  }),
+  control: (provided, state) => ({
+    ...provided,
+    backgroundColor: "#447744",
+  })
+}
 
 const status_list = ["Canceled", "Open", "In progress", "Done"]
 const new_ticket = {
@@ -96,6 +108,11 @@ function create_ticket(ticket, all_tck, set_all_tck, my_profile){
 
 }
 
+function set_parent(value, tck, set_ticket, all_tck, set_all_tck){
+    tck.parent = value;
+    put_ticket(tck, set_ticket, all_tck, set_all_tck);
+}
+
 function set_title(tck, set_ticket, event, all_tck, set_all_tck){
     tck.title = event.target.value;
     put_ticket(tck, set_ticket, all_tck, set_all_tck);
@@ -152,47 +169,47 @@ class TitleArea extends React.Component {
 class UserBadge extends React.Component {
     constructor(props){
         super(props);
-        this.state = {user_id: null, username: null};
+        this.state = {user_id: null, display_name: null};
         for (var user_idx in this.props.user_data.users){
             if (this.props.tck.assignee === this.props.user_data.users[user_idx].user_id){
-                this.state = {user_id: this.props.user_id, username:this.props.user_data.users[user_idx].username};
+                this.state = {user_id: this.props.user_id, display_name:this.props.user_data.users[user_idx].display_name};
                 break;
             }
         }
     }
      shouldComponentUpdate(nextProps) {
         if(nextProps.tck !== this.props.tck) {
-            var username = null;
+            var display_name = null;
             for (var user_idx in this.props.user_data.users){
                 if (nextProps.tck.assignee === this.props.user_data.users[user_idx].user_id){
-                    username = this.props.user_data.users[user_idx].username;
+                    display_name = this.props.user_data.users[user_idx].display_name;
                     break;
                 }
             }
-            this.setState({user_id: nextProps.tck.assignee, username: username})
+            this.setState({user_id: nextProps.tck.assignee, display_name: display_name})
         }
         return true;
     }
     onchange (event, value, tck, set_tck, all_tck, set_all_tck){
         if (!value){
-            this.setState({user_id: null, username: null});
+            this.setState({user_id: null, display_name: null});
             tck.assignee = null;
         }
         for (var user_idx in this.props.user_data.users){
-            if (value === this.props.user_data.users[user_idx].username){
+            if (value === this.props.user_data.users[user_idx].display_name){
                 this.setState({user_id: this.props.user_data.users[user_idx].user_id});
                 tck.assignee = this.props.user_data.users[user_idx].user_id;
                 break;
             }
         }
-        this.setState({username: value});
+        this.setState({display_name: value});
         put_ticket(tck, set_tck, all_tck, set_all_tck);
     }
     render(){
         return (
             <span className='user-badge'>
                 <ImgIcon img_id={this.state.user_id} />
-                <UserCombo username={this.state.username} onChange={(event, value) => this.onchange(
+                <UserCombo display_name={this.state.display_name} onChange={(event, value) => this.onchange(
                      event, value, this.props.tck, this.props.set_tck, this.props.all_tck, this.props.set_all_tck)}
                  user_data={this.props.user_data} />
             </span>
@@ -200,9 +217,8 @@ class UserBadge extends React.Component {
     }
 }
 
-
 const UserCombo: React.FC<props> = ({
-    username,
+    display_name,
     user_data,
     onChange
     }) => {
@@ -210,18 +226,74 @@ const UserCombo: React.FC<props> = ({
     if (!user_data) return;
     var options = []
     for (var user_idx in user_data.users) {
-        options.push(user_data.users[user_idx].username)
+        options.push(user_data.users[user_idx].display_name)
     }
     return (
         <Autocomplete
           disablePortal
           options={options}
-          value={username}
+          value={display_name}
           onChange={onChange}
           sx={{ width: '320px' }}
           renderInput={(params) => <TextField {...params} label="Assignee" variant="standard"/>}
         />
     );
+}
+
+class ParentBox extends React.Component{
+    upValue(props) {
+        if (props.all_tck && props.all_tck.tickets){
+            for (var tck_idx in props.all_tck.tickets) {
+                var parent_candidate = props.all_tck.tickets[tck_idx]
+                if (parent_candidate.ticket_id === props.ticket.parent){
+                    return {value: parent_candidate.ticket_id, label: parent_candidate.title}
+                }
+            }
+        }
+        return {value: null, label: '<Root ticket>'}
+    }
+
+    constructor(props) {
+        super(props);
+        if (props.all_tck.tickets){
+            var options = props.all_tck.tickets.map((tck) => {
+                if (tck.ticket_id === props.ticket.ticket_id){
+                    return {value:null, label: '<Root ticket>'}
+                }
+                return {label: tck.title, value: tck.ticket_id}
+                })
+        }
+        options.push();
+        this.state = {value: this.upValue(props), options: options}
+    }
+    shouldComponentUpdate(nextProps) {
+        if(nextProps.ticket.parent !== this.props.ticket.parent) {
+            this.setState({value: this.upValue(nextProps)})
+        }
+        return true;
+    }
+    updateValue = (value) => {
+        this.setState({value: value});
+    }
+    render() {
+        return (
+        <div>
+          <span>Parent: </span>
+          <Select options={this.state.options} styles={customStyles} value={this.state.value}
+            onChange={this.updateValue}
+            onBlur={() => set_parent(this.state.value.value, this.props.ticket, this.props.set_ticket,
+                                     this.props.all_tck, this.props.set_all_tck)}/>
+          {this.state.value.value ? <a href="#" onClick={(event) => {
+              for (var tck_idx in this.props.all_tck.tickets) {
+                  console.log(this.props.all_tck.tickets[tck_idx].ticket_id, this.state.value.value)
+                  if (this.props.all_tck.tickets[tck_idx].ticket_id == this.state.value.value){
+                      this.props.set_ticket(this.props.all_tck.tickets[tck_idx])
+                  }
+              }
+          }}>To parent</a> : ""}
+        </div>
+        );
+    }
 }
 
 class DescArea extends React.Component {
@@ -282,20 +354,6 @@ export const PaneLeft: React.FC<Props> = ({
                 </div>
             )
         }
-        else if (ticket.parent && all_tck.tickets[tck_idx].ticket_id === ticket.parent){
-            const parent_tck = all_tck.tickets[tck_idx]
-
-            parents.push(
-                <div className="ticket-row-mini ticket-paper"
-                    key={parent_tck.ticket_id}
-                    onClick={() => set_ticket(parent_tck)}>
-                    <div className="flex1 title-mini">{parent_tck.title}</div>
-                    <div className="flexbtn icons">
-                        <img src={progress_obj[parent_tck.status]} alt={parent_tck.status}></img>
-                    </div>
-                </div>
-            )
-        }
       }
       return (
       <div className="pane-left">
@@ -323,7 +381,7 @@ export const PaneLeft: React.FC<Props> = ({
           <ImgIcon img_id={ticket.owner} />
           </div>
         </div>
-        {parents}
+        <ParentBox ticket={ticket} set_ticket={set_ticket} all_tck={all_tck} set_all_tck={set_all_tck} />
         <div className="sons-container">
           <button className="add-ticket ticket-row-mini" onClick={() => create_son(ticket, all_tck, set_all_tck, my_profile)}>
             <span>Create son</span>

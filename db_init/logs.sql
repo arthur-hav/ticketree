@@ -28,14 +28,8 @@ CREATE TABLE profiles (
 );
 CREATE TABLE user_organization (
     user_id TEXT,
-    organization_id TEXT
-);
-CREATE TABLE acl (
-    id TEXT,
-    user_id TEXT,
-    action TEXT,
-    object_type TEXT,
-    filter TEXT
+    organization_id TEXT,
+    is_organization_admin BOOLEAN
 );
 CREATE TABLE event (
     time TIMESTAMP,

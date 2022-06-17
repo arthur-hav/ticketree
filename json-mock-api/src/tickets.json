@@ -1,36 +1,30 @@
 {
   "tickets": {
-    "tickets": [
-      {
-        "ticket_id": "667d7452-21dd-42e3-8737-0bd9ee50c1e9",
-        "assignee": "667d7452-21dd-42e3-8737-0bd9ee50c1e9",
-        "title": "This is a client side generated title This is a client side generated title This is a client side generated title This is a client side generated title",
-        "description": "Lorem ipsum",
-        "status": "In progress"
-      },
-      {
-        "ticket_id": "667d7452-21dd-42e3-8737-0bd9ee50c1e8",
-        "assignee": null,
-        "title": "This is another a client side generated title",
-        "description": "Lorem ipsum lorem ipsum",
-        "status": "Open"
-      }
-    ]
+    "title": "Title",
+    "status": "Open",
+    "description": "Description",
+    "organization": null,
+    "assignee": null,
+    "parent": "667d7452-21dd-42e3-8737-0bd9ee50c1e8",
+    "ticket_type": "incident",
+    "owner": null
   },
   "profiles": {
     "users": [
       {
         "user_id": "667d7452-21dd-42e3-8737-0bd9ee50c1e9",
-        "username": "Arthur Havlicek"
+        "display_name": "Arthur Havlicek",
+        "is_admin": true
       },
       {
         "user_id": "7c563f4a-2bcf-4aab-a135-e73a59fcfbdf",
-        "username": "Sebastien Sabio"
+        "display_name": "Sebastien Sabio",
+        "is_admin": false
       }
     ]
   },
   "profile": {
-    "username": "Arthur Havlicek",
+    "display_name": "Arthur Havlicek",
     "user_id": "667d7452-21dd-42e3-8737-0bd9ee50c1e9"
   },
   "organizations": {
@@ -48,12 +42,17 @@
     ]
   },
   "user_organization": {
-    "user_organization": [{
-      "organization_id": "054ab8e0-9e10-481d-addb-14ab60274355",
-      "user_id": "7c563f4a-2bcf-4aab-a135-e73a59fcfbdf"
-    }, {
-      "organization_id": "128e4e0b-0784-4cb0-bf00-3b8c0b648991",
-      "user_id": "667d7452-21dd-42e3-8737-0bd9ee50c1e9"
-    }]
+    "user_organization": [
+      {
+        "organization_id": "054ab8e0-9e10-481d-addb-14ab60274355",
+        "user_id": "7c563f4a-2bcf-4aab-a135-e73a59fcfbdf",
+        "is_organization_admin": true
+      },
+      {
+        "organization_id": "128e4e0b-0784-4cb0-bf00-3b8c0b648991",
+        "user_id": "667d7452-21dd-42e3-8737-0bd9ee50c1e9",
+        "is_organization_admin": false
+      }
+    ]
   }
 }

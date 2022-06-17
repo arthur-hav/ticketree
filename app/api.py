@@ -16,6 +16,7 @@ import re
 import os
 import io
 import uuid
+import base64
 
 from .db_conn import Cursor
 from .img_gen import pyvomit128
@@ -27,14 +28,6 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 1440
 
 class TokenData(BaseModel):
     username: Union[str, None] = None
-
-
-class User(BaseModel):
-    username: str
-    id: uuid.UUID
-    display_name: Union[str, None] = None
-    is_admin: bool
-    hashed_password: str
 
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -143,14 +136,25 @@ class NewFilter(BaseModel):
 
 
 class NewUser(BaseModel):
-    username: str
+    username: Union[str, None] = None
     display_name: str
-    password: str
+    password: Union[str, None] = None
     is_admin: bool
 
 
-class PutUser(BaseModel):
+class User(BaseModel):
     username: str
+    id: uuid.UUID
+    display_name: Union[str, None] = None
+    is_admin: bool
+    hashed_password: str
+
+
+class PutUser(BaseModel):
+    username: Union[str, None] = None
+    display_name: str
+    password: Union[str, None] = None
+    is_admin: bool
 
 
 class Filter(NewFilter):
@@ -166,8 +170,9 @@ class NewOrg(BaseModel):
     parent: Union[uuid.UUID, None]
 
 
-class Uuid_list(BaseModel):
+class PermList(BaseModel):
     lst: Tuple[uuid.UUID, ...]
+    is_organization_admin: bool
 
 
 def create_admin():
@@ -177,9 +182,9 @@ def create_admin():
                          password=os.environ.get('TCK_ADMIN_PASSWORD'))
     cur = Cursor()
     query = sql.SQL(f"""
-    SELECT id FROM profiles WHERE username = %s
+    SELECT id FROM profiles WHERE is_admin
     """)
-    cur.execute(query, (superadmin.username,))
+    cur.execute(query)
     if cur.rowcount > 0:
         return
     query = sql.SQL(f"""
@@ -308,29 +313,40 @@ class FilterExpression:
             return prev_val in self.evaluate(obj, tokens)
 
 
+async def org_list_from_user_id(user_id):
+    cur = Cursor()
+    organization_list = []
+    query = sql.SQL("""
+     SELECT organizations.id, organizations.parent
+         FROM organizations INNER JOIN user_organization ON organizations.id = user_organizations.organization_id 
+         WHERE user_organizations.id = %s;
+     """)
+    cur.execute(query, (str(user_id),))
+    tree = cur.fetchall()
+    while tree:
+        org, parent = tree.pop()
+        organization_list.append(str(org))
+        if parent:
+            query = sql.SQL("""
+             SELECT organizations.parent
+                 FROM organizations
+                 WHERE id = %s;
+             """)
+            cur.execute(query, (str(parent),))
+            tree.append(parent, cur.fetchone()[0])
+    return [org[0] for org in tree]
+
+
 @app.get("/tickets/")
 async def get_ticket(user: User = Depends(get_current_user)):
-    if user.is_admin:
-        acls = ['#true']
-    else:
-        cur = Cursor()
-        query = sql.SQL("""
-        SELECT filter.expression 
-            FROM acl LEFT JOIN filter ON acl.filter = filter.id 
-            WHERE action = 'READ' 
-              AND object_type = 'ticket' 
-              AND user_id = %s;
-        """)
-        cur.execute(query, (str(user.id),))
-        acls = cur.fetchall()
-    acl_filters = [FilterExpression(user.id, acl) for acl in acls]
-    if not acl_filters:
-        return {'tickets': [], 'success': True}
     cur = Cursor()
+    organization_list = await org_list_from_user_id(user.id)
     query = sql.SQL("""
-    SELECT id, title, type, description, assignee, organization, parent, status FROM ticket;
+    SELECT id, title, type, description, assignee, organization, parent, status 
+        FROM ticket
+        WHERE organization IS NULL OR organization IN %s OR owner = %s;
     """)
-    cur.execute(query)
+    cur.execute(query, (organization_list, str(user.id)))
     ret_tickets = []
     for ticket_data in cur.fetchall():
         t = Ticket(
@@ -343,28 +359,12 @@ async def get_ticket(user: User = Depends(get_current_user)):
             parent=ticket_data[6],
             status=ticket_data[7]
         )
-        if not all(acl_filter.evaluate(t) for acl_filter in acl_filters):
-            continue
         ret_tickets.append(t)
     return {'tickets': ret_tickets, 'success': True}
 
 
 @app.post("/tickets/")
 async def post_ticket(ticket: NewTicket, user: User = Depends(get_current_user)):
-    if user.is_admin:
-        acls = ['#true']
-    else:
-        cur = Cursor()
-        query = sql.SQL("""
-        SELECT filter FROM acl WHERE action = 'READ' AND object_type = 'ticket' AND user_id = %s;
-        """)
-        cur.execute(query, (str(user.id),))
-        acls = cur.fetchall()
-    acl_filters = [FilterExpression(user.id, acl) for acl in acls]
-    if not acl_filters:
-        return {'success': False}
-    if not all(acl_filter.evaluate(ticket) for acl_filter in acl_filters):
-        return {'success': False}
     cur = Cursor()
     query = sql.SQL("""
     INSERT INTO ticket (id, owner, title, type, description, assignee, organization, parent, status) 
@@ -512,26 +512,15 @@ async def delete_filter(filter_id: uuid.UUID, user: User = Depends(get_current_u
 
 @app.get("/profile")
 async def get_me(user: User = Depends(get_current_user)):
+    org_list = org_list_from_user_id(user.id)
     cur = Cursor()
     query = sql.SQL(f"""
-    SELECT (username) 
+    SELECT display_name 
         FROM profiles
         WHERE id = %s;
     """)
     cur.execute(query, (str(user.id),))
-    return {'username': cur.fetchone(), 'user_id': user.id}
-
-
-@app.put("/profile")
-async def put_me(user_data: PutUser, user: User = Depends(get_current_user)):
-    cur = Cursor()
-    query = sql.SQL(f"""
-    UPDATE profiles 
-        SET display_name = %s 
-        WHERE id = %s;
-    """)
-    cur.execute(query, (user_data.username, str(user.id),))
-    return {'success': True}
+    return {'display_name': cur.fetchone(), 'user_id': user.id, 'org_list': org_list}
 
 
 @app.delete("/profile/{user_id}")
@@ -557,72 +546,94 @@ async def post_profile(user_data: NewUser,
     INSERT INTO profiles (id, username, is_admin, display_name, pass_hash)
         VALUES (%s, %s, %s, %s, %s) 
     """)
-    cur.execute(query, (uuid.uuid4(),
-                        user_data.username,
+    username = base64.encodebytes(os.urandom(32)).decode('utf-8')
+    user_id = uuid.uuid4()
+    cur.execute(query, (str(user_id),
+                        username,
                         user_data.is_admin,
                         user_data.display_name,
-                        get_password_hash(user_data.password)))
-    return {'success': True}
+                        get_password_hash(base64.encodebytes(os.urandom(32)).decode('utf-8'))))
+    return {'success': True, 'user_id': user_id}
 
 
 @app.put("/profiles/{user_id}")
 async def put_profile(user_id: uuid.UUID,
                       user_data: PutUser,
                       user: User = Depends(get_current_user)):
-    if not user.is_admin:
+    if user_id != user.id and not user.is_admin:
         raise credentials_exception
     cur = Cursor()
-    query = sql.SQL(f"""
+    query = sql.SQL("""
     UPDATE profiles 
-        SET display_name = %s 
+        SET display_name = %s,
+            is_admin = %s
         WHERE id = %s;
     """)
-    cur.execute(query, (user_data.username, str(user_id),))
+    cur.execute(query, (user_data.display_name, user_data.is_admin, str(user_id),))
+    if user_data.password:
+        query = sql.SQL("""
+        UPDATE profiles 
+            SET pass_hash = %s
+            WHERE id = %s;
+        """)
+        cur.execute(query, (get_password_hash(user_data.password), str(user_id),))
+    if user_data.username:
+        query = sql.SQL("""
+        UPDATE profiles 
+            SET username = %s
+            WHERE id = %s;
+        """)
+        cur.execute(query, (user_data.username, str(user_id),))
     return {'success': True}
 
 
 @app.get("/profiles/{user_id}")
 async def get_profile(user_id: uuid.UUID, user: User = Depends(get_current_user)):
-    if not user.is_admin:
-        raise credentials_exception
     cur = Cursor()
     query = sql.SQL(f"""
-    SELECT (display_name) 
+    SELECT display_name
         FROM profiles
         WHERE id = %s;
     """)
     cur.execute(query, (user_id,))
-    return {'username': cur.fetchone()}
+    display_name, is_admin = cur.fetchone()
+    return {'display_name': display_name, 'is_admin': is_admin}
 
 
 @app.get("/profiles")
 async def list_profiles(user: User = Depends(get_current_user)):
-    if not user.is_admin:
-        raise credentials_exception
     cur = Cursor()
     query = sql.SQL(f"""
-    SELECT id, display_name
+    SELECT id, display_name, is_admin
         FROM profiles
         ORDER BY id ASC;
     """)
     cur.execute(query)
-    users = [{"user_id": user[0], "username": user[1]} for user in cur.fetchall()]
+    users = [{"user_id": user[0], "display_name": user[1], "is_admin": user[2]} for user in cur.fetchall()]
     return {'users': users}
 
 
 # Organization
 
 
-@app.delete("/organization/{user_id}")
-async def delete_organization(user_id: uuid.UUID, user: User = Depends(get_current_user)):
-    if not user.is_admin:
-        raise credentials_exception
+@app.delete("/organization/{org_id}")
+async def delete_organization(org_id: uuid.UUID, user: User = Depends(get_current_user)):
     cur = Cursor()
+    if not user.is_admin:
+        query = sql.SQL("""
+        SELECT organization_id FROM user_organization WHERE user_id = %s AND is_organization_admin;
+        """)
+        cur.execute(query, (user.id,))
+        admin_from = set([row[0] for row in cur.fetchall()])
+        if org_id not in admin_from:
+            raise credentials_exception
     query = sql.SQL(f"""
-    DELETE organizations 
+    DELETE FROM organizations 
         WHERE id = %s;
+    DELETE FROM user_organization
+        WHERE organization_id = %s;
     """)
-    cur.execute(query, (user_id,))
+    cur.execute(query, (org_id, org_id,))
     return {'success': True}
 
 
@@ -644,9 +655,15 @@ async def post_organization(org: NewOrg, user: User = Depends(get_current_user))
 
 @app.put("/organization/{org_id}")
 async def put_organization(org_id: uuid.UUID, org_data: NewOrg, user: User = Depends(get_current_user)):
-    if not user.is_admin:
-        raise credentials_exception
     cur = Cursor()
+    if not user.is_admin:
+        query = sql.SQL("""
+        SELECT organization_id FROM user_organization WHERE user_id = %s AND is_organization_admin;
+        """)
+        cur.execute(query, (user.id,))
+        admin_from = set([row[0] for row in cur.fetchall()])
+        if org_id not in admin_from:
+            raise credentials_exception
     query = sql.SQL(f"""
     UPDATE organizations 
         SET display_name = %s,
@@ -657,25 +674,21 @@ async def put_organization(org_id: uuid.UUID, org_data: NewOrg, user: User = Dep
     return {'success': True}
 
 
-@app.get("/organizations/{user_id}")
-async def get_organization(user_id: uuid.UUID, user: User = Depends(get_current_user)):
-    if not user.is_admin:
-        raise credentials_exception
+@app.get("/organizations/{org_id}")
+async def get_organization(org_id: uuid.UUID, user: User = Depends(get_current_user)):
     cur = Cursor()
     query = sql.SQL(f"""
     SELECT display_name, parent
         FROM organizations
         WHERE id = %s;
     """)
-    cur.execute(query, (user_id,))
+    cur.execute(query, (org_id,))
     display_name, parent = cur.fetchone()
     return {'display_name': display_name, 'parent': parent}
 
 
 @app.get("/organizations")
 async def list_organizations(user: User = Depends(get_current_user)):
-    if not user.is_admin:
-        raise credentials_exception
     cur = Cursor()
     query = sql.SQL(f"""
     SELECT id, display_name, parent
@@ -689,88 +702,73 @@ async def list_organizations(user: User = Depends(get_current_user)):
 
 @app.get("/user_organization")
 async def user_organization(user: User = Depends(get_current_user)):
-    if not user.is_admin:
-        raise credentials_exception
     cur = Cursor()
     query = sql.SQL(f"""
-    SELECT organization_id, user_id
+    SELECT organization_id, user_id, is_organization_admin
         FROM user_organization
         ORDER BY organization_id, user_id;
     """)
     cur.execute(query)
-    users = [{"organization_id": org_user[0], "user_id": org_user[1]} for org_user in cur.fetchall()]
+    users = [{"organization_id": org_user[0], "user_id": org_user[1], "is_organization_admin": org_user[2]}
+             for org_user in cur.fetchall()]
     return {'user_organization': users}
 
 
 @app.put("/user_organization/{user_id}")
-async def put_organization_list(organization_list: Uuid_list, user_id: uuid.UUID,
+async def put_organization_list(organization_list: PermList, user_id: uuid.UUID,
                                 user: User = Depends(get_current_user)):
-    if not user.is_admin:
-        raise credentials_exception
     cur = Cursor()
-    query = sql.SQL(f"""
-    DELETE FROM user_organization WHERE user_id = %s;
+    organization_list.lst = set([str(org) for org in organization_list.lst])
+    if not user.is_admin:
+        query = sql.SQL("""
+        SELECT organization_id FROM user_organization WHERE user_id = %s AND is_organization_admin;
+        """)
+        cur.execute(query, (str(user.id),))
+        admin_from = set([row[0] for row in cur.fetchall()])
+        query = sql.SQL("""
+        SELECT organization_id FROM user_organization WHERE user_id = %s AND is_organization_admin = %s;
+        """)
+        cur.execute(query, (str(user_id), organization_list.is_organization_admin))
+        removed_orgs = set([row[0] for row in cur.fetchall()]) - organization_list.lst
+        if not organization_list.lst.issubset(admin_from) or not removed_orgs.issubset(admin_from):
+            raise Exception(str((admin_from, organization_list.lst, removed_orgs)))
+    query = sql.SQL("""
+    DELETE FROM user_organization WHERE user_id = %s AND is_organization_admin = %s;
     """)
-    cur.execute(query, (str(user_id),))
-    organization_list.lst = set(organization_list.lst)
+    cur.execute(query, (str(user_id), organization_list.is_organization_admin))
+
     if organization_list.lst:
-        value_list = (tuple(str(user_id) for org in organization_list.lst), tuple(str(org) for org in organization_list.lst))
-        cur.execute("INSERT INTO user_organization (user_id, organization_id) VALUES %s;", (value_list,))
+        value_list = (tuple(str(user_id) for org in organization_list.lst),
+                      tuple(str(org) for org in organization_list.lst),
+                      tuple(organization_list.is_organization_admin for org in organization_list.lst))
+        cur.execute("""
+        INSERT INTO user_organization (user_id, organization_id, is_organization_admin) 
+            VALUES %s;""", (value_list,))
     return {'success': True}
 
 
 @app.put("/organization_user/{organization_id}")
-async def put_user_list(user_list: Uuid_list, organization_id: uuid.UUID, user: User = Depends(get_current_user)):
-    if not user.is_admin:
-        raise credentials_exception
+async def put_user_list(user_list: PermList, organization_id: uuid.UUID, user: User = Depends(get_current_user)):
     cur = Cursor()
+    if not user.is_admin:
+        query = sql.SQL(f"""
+        SELECT user_id FROM user_organization WHERE organization_id = %s AND user_id = %s AND is_organization_admin;
+        """)
+        cur.execute(query, (str(organization_id), str(user.id)))
+        if not cur.rowcount:
+            raise credentials_exception
     query = sql.SQL(f"""
-    DELETE FROM user_organization WHERE organization_id = %s;
+    DELETE FROM user_organization WHERE organization_id = %s AND is_organization_admin = %s;
     """)
-    cur.execute(query, (str(organization_id),))
+    cur.execute(query, (str(organization_id), user_list.is_organization_admin))
     user_list.lst = set(user_list.lst)
     if user_list.lst:
-        value_list = (tuple(str(organization_id) for org in user_list.lst), tuple(str(org) for org in user_list.lst))
-        cur.execute("INSERT INTO user_organization (organization_id, user_id) VALUES %s;", (value_list,))
-    return {'success': True}
-
-# ACL
-
-
-@app.get("/acl")
-async def get_acl(user: User = Depends(get_current_user)):
-    if not user.is_admin:
-        raise credentials_exception
-    cur = Cursor()
-    query = sql.SQL(f"""
-    SELECT (username) 
-        FROM profiles
-        WHERE id = %s;
-    """)
-    cur.execute(query, (str(user.id),))
-    return {'username': cur.fetchone()}
-
-
-@app.post("/acl")
-async def post_acl(user: User = Depends(get_current_user)):
-    if not user.is_admin:
-        raise credentials_exception
-    cur = Cursor()
-
-    return {'success': True, 'id': str(user.id)}
-
-
-@app.put("/acl")
-async def put_acl(user: User = Depends(get_current_user)):
-    if not user.is_admin:
-        raise credentials_exception
-    cur = Cursor()
-    query = sql.SQL(f"""
-    UPDATE profiles 
-        SET username = %s 
-        WHERE id = %s;
-    """)
-    cur.execute(query, (user.username, str(user.id),))
+        value_list = (tuple(str(organization_id) for org in user_list.lst),
+                      tuple(str(org) for org in user_list.lst),
+                      tuple(user_list.is_organization_admin for org in user_list.lst))
+        cur.execute("""
+        INSERT INTO user_organization (organization_id, user_id, is_organization_admin) 
+            VALUES %s;""", (value_list,))
     return {'success': True}
 
 
@@ -780,7 +778,7 @@ async def put_acl(user: User = Depends(get_current_user)):
                  "content": {"image/png": {}}
              }
          },
-        response_class=Response
+         response_class=Response
 )
 async def get_uid_img(uid: uuid.UUID):
     cache = dc.Cache()
