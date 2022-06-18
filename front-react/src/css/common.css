@@ -36,10 +36,16 @@ body {
     display:flex;
 }
 
-img {
+img, img.imgicon {
     width: 24px;
     height: 24px;
     overflow:hidden;
+}
+
+span.autocomplete-icon {
+    margin-top: 24px;
+    margin-right: 5px;
+    flex: 0.15;
 }
 
 .sons-container {
@@ -154,7 +160,7 @@ img {
     white-space: nowrap;
 }
 
-.flexbtn {
+.flex .flexbtn {
     flex: none;
     width: 40px;
 }

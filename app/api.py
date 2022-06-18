@@ -136,24 +136,24 @@ class NewFilter(BaseModel):
 
 
 class NewUser(BaseModel):
-    username: Union[str, None] = None
+    username: Optional[str]
     display_name: str
-    password: Union[str, None] = None
+    password: Optional[str]
     is_admin: bool
 
 
 class User(BaseModel):
     username: str
     id: uuid.UUID
-    display_name: Union[str, None] = None
+    display_name: Optional[str]
     is_admin: bool
     hashed_password: str
 
 
 class PutUser(BaseModel):
-    username: Union[str, None] = None
+    username: Optional[str]
     display_name: str
-    password: Union[str, None] = None
+    password: Optional[str]
     is_admin: bool
 
 
@@ -163,6 +163,7 @@ class Filter(NewFilter):
 
 class Ticket(NewTicket):
     ticket_id: uuid.UUID
+    owner: uuid.UUID
 
 
 class NewOrg(BaseModel):
@@ -317,36 +318,45 @@ async def org_list_from_user_id(user_id):
     cur = Cursor()
     organization_list = []
     query = sql.SQL("""
-     SELECT organizations.id, organizations.parent
-         FROM organizations INNER JOIN user_organization ON organizations.id = user_organizations.organization_id 
-         WHERE user_organizations.id = %s;
+     SELECT organizations.id, organizations.parent, organizations.display_name
+         FROM organizations INNER JOIN user_organization ON organizations.id = user_organization.organization_id 
+         WHERE user_organization.user_id = %s;
      """)
     cur.execute(query, (str(user_id),))
     tree = cur.fetchall()
     while tree:
-        org, parent = tree.pop()
-        organization_list.append(str(org))
+        org, parent, display_name = tree.pop()
+        organization_list.append({'organization_id': org, 'parent': parent, 'display_name': display_name})
         if parent:
             query = sql.SQL("""
-             SELECT organizations.parent
+             SELECT organizations.parent, organizations.display_name
                  FROM organizations
                  WHERE id = %s;
              """)
             cur.execute(query, (str(parent),))
-            tree.append(parent, cur.fetchone()[0])
-    return [org[0] for org in tree]
+            parent_parent, display_name = cur.fetchone()
+            tree.append((parent, parent_parent, display_name))
+    return organization_list
 
 
 @app.get("/tickets/")
 async def get_ticket(user: User = Depends(get_current_user)):
     cur = Cursor()
-    organization_list = await org_list_from_user_id(user.id)
-    query = sql.SQL("""
-    SELECT id, title, type, description, assignee, organization, parent, status 
-        FROM ticket
-        WHERE organization IS NULL OR organization IN %s OR owner = %s;
-    """)
-    cur.execute(query, (organization_list, str(user.id)))
+    if not user.is_admin:
+        organization_list = tuple(org['organization_id'] for org in await org_list_from_user_id(user.id))
+        query = sql.SQL("""
+        SELECT id, title, type, description, assignee, organization, parent, status, owner
+            FROM ticket
+            WHERE organization IN %s OR owner = %s;
+        """)
+        cur.execute(query, (organization_list or ("no-match",), str(user.id)))
+
+    else:
+        query = sql.SQL("""
+        SELECT id, title, type, description, assignee, organization, parent, status, owner
+            FROM ticket;
+        """)
+        cur.execute(query)
     ret_tickets = []
     for ticket_data in cur.fetchall():
         t = Ticket(
@@ -357,7 +367,8 @@ async def get_ticket(user: User = Depends(get_current_user)):
             assignee=ticket_data[4],
             organization=ticket_data[5],
             parent=ticket_data[6],
-            status=ticket_data[7]
+            status=ticket_data[7],
+            owner=ticket_data[8]
         )
         ret_tickets.append(t)
     return {'tickets': ret_tickets, 'success': True}
@@ -387,38 +398,20 @@ async def post_ticket(ticket: NewTicket, user: User = Depends(get_current_user))
 
 @app.put("/tickets/{ticket_id}")
 async def put_ticket(ticket: NewTicket, ticket_id: uuid.UUID, user: User = Depends(get_current_user)):
-    if user.is_admin:
-        acls = ['#true']
-    else:
-        cur = Cursor()
+    cur = Cursor()
+    if not user.is_admin:
         query = sql.SQL("""
-        SELECT filter FROM acl WHERE action = 'READ' AND object_type = 'ticket' AND user_id = %s;
+        SELECT owner, organization FROM ticket WHERE id = %s;
         """)
-        cur.execute(query, (str(user.id),))
-        acls = cur.fetchall()
-    acl_filters = [FilterExpression(user.id, acl) for acl in acls]
-    if not acl_filters:
-        return {'success': False}
-    if not all(acl_filter.evaluate(Ticket(ticket_id=ticket_id, **ticket.dict())) for acl_filter in acl_filters):
-        return {'success': False}
-    cur = Cursor()
-    query = sql.SQL("""
-    SELECT title, type, description, assignee, organization, parent, status FROM ticket WHERE id = %s;
-    """)
-    cur.execute(query, (str(ticket_id),))
-    cur_ticket_data = cur.fetchone()
-    cur_ticket = NewTicket(
-        title=cur_ticket_data[0],
-        ticket_type=cur_ticket_data[1],
-        description=cur_ticket_data[2],
-        assignee=uuid.UUID(cur_ticket_data[3]) if cur_ticket_data[3] else None,
-        organization=uuid.UUID(cur_ticket_data[4]) if cur_ticket_data[4] else None,
-        parent=uuid.UUID(cur_ticket_data[5]) if cur_ticket_data[5] else None,
-        status=cur_ticket_data[6],
-    )
-    if not all(acl_filter.evaluate(cur_ticket) for acl_filter in acl_filters):
-        return {'success': False}
-    cur = Cursor()
+        cur.execute(query, (str(ticket_id),))
+        cur_ticket_data = cur.fetchone()
+        org_list = [str(org['organization_id']) for org in await org_list_from_user_id(user.id)]
+        if cur_ticket_data[0] != str(user.id):
+            if ticket.organization and str(ticket.organization) not in org_list:
+                return {"success": False}
+            if cur_ticket_data[1] not in org_list:
+                return {'success': False}
+
     query = sql.SQL("""
     UPDATE ticket 
         SET title = %s, 
@@ -440,7 +433,7 @@ async def put_ticket(ticket: NewTicket, ticket_id: uuid.UUID, user: User = Depen
                  ticket.status,
                  str(ticket_id)
                  ))
-    return {'success': cur.rowcount}
+    return {'success': True}
 
 
 # FILTERS
@@ -512,7 +505,7 @@ async def delete_filter(filter_id: uuid.UUID, user: User = Depends(get_current_u
 
 @app.get("/profile")
 async def get_me(user: User = Depends(get_current_user)):
-    org_list = org_list_from_user_id(user.id)
+    org_list = await org_list_from_user_id(user.id)
     cur = Cursor()
     query = sql.SQL(f"""
     SELECT display_name 
@@ -731,7 +724,7 @@ async def put_organization_list(organization_list: PermList, user_id: uuid.UUID,
         cur.execute(query, (str(user_id), organization_list.is_organization_admin))
         removed_orgs = set([row[0] for row in cur.fetchall()]) - organization_list.lst
         if not organization_list.lst.issubset(admin_from) or not removed_orgs.issubset(admin_from):
-            raise Exception(str((admin_from, organization_list.lst, removed_orgs)))
+            raise credentials_exception
     query = sql.SQL("""
     DELETE FROM user_organization WHERE user_id = %s AND is_organization_admin = %s;
     """)

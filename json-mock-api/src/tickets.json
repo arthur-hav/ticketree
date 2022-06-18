@@ -1,13 +1,29 @@
 {
   "tickets": {
-    "title": "Title",
-    "status": "Open",
-    "description": "Description",
-    "organization": null,
-    "assignee": null,
-    "parent": "667d7452-21dd-42e3-8737-0bd9ee50c1e8",
-    "ticket_type": "incident",
-    "owner": null
+    "tickets": [
+      {
+        "ticket_id": "667d7452-21dd-42e3-8737-0bd9ee50c1e8",
+        "title": "Title1",
+        "status": "Open",
+        "description": "Description",
+        "organization": "128e4e0b-0784-4cb0-bf00-3b8c0b648991",
+        "assignee": null,
+        "parent": null,
+        "ticket_type": "incident",
+        "owner": "667d7452-21dd-42e3-8737-0bd9ee50c1e9"
+      },
+      {
+        "ticket_id": "4a494f41-7723-48a6-a52a-00de2c63ece0",
+        "title": "Title2",
+        "status": "Open",
+        "description": "Description",
+        "organization": null,
+        "assignee": null,
+        "parent": "667d7452-21dd-42e3-8737-0bd9ee50c1e8",
+        "ticket_type": "incident",
+        "owner": "667d7452-21dd-42e3-8737-0bd9ee50c1e9"
+      }
+    ]
   },
   "profiles": {
     "users": [
@@ -25,7 +41,14 @@
   },
   "profile": {
     "display_name": "Arthur Havlicek",
-    "user_id": "667d7452-21dd-42e3-8737-0bd9ee50c1e9"
+    "user_id": "667d7452-21dd-42e3-8737-0bd9ee50c1e9",
+    "org_list": [
+      {
+        "organization_id": "128e4e0b-0784-4cb0-bf00-3b8c0b648991",
+        "parent": null,
+        "display_name": "MyCompany"
+      }
+    ]
   },
   "organizations": {
     "organizations": [

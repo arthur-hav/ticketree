@@ -113,6 +113,11 @@ function set_parent(value, tck, set_ticket, all_tck, set_all_tck){
     put_ticket(tck, set_ticket, all_tck, set_all_tck);
 }
 
+function set_organization(value, tck, set_ticket, all_tck, set_all_tck){
+    tck.organization = value
+    put_ticket(tck, set_ticket, all_tck, set_all_tck)
+}
+
 function set_title(tck, set_ticket, event, all_tck, set_all_tck){
     tck.title = event.target.value;
     put_ticket(tck, set_ticket, all_tck, set_all_tck);
@@ -169,132 +174,178 @@ class TitleArea extends React.Component {
 class UserBadge extends React.Component {
     constructor(props){
         super(props);
-        this.state = {user_id: null, display_name: null};
+        this.state = {label: "<Unassigned>", value: null};
         for (var user_idx in this.props.user_data.users){
             if (this.props.tck.assignee === this.props.user_data.users[user_idx].user_id){
-                this.state = {user_id: this.props.user_id, display_name:this.props.user_data.users[user_idx].display_name};
+                this.state = {value: this.props.user_id, label: this.props.user_data.users[user_idx].display_name};
                 break;
             }
         }
     }
      shouldComponentUpdate(nextProps) {
-        if(nextProps.tck !== this.props.tck) {
-            var display_name = null;
+        if(nextProps.tck.ticket_id !== this.props.tck.ticket_id) {
+            var display_name = "<Unassigned>";
             for (var user_idx in this.props.user_data.users){
                 if (nextProps.tck.assignee === this.props.user_data.users[user_idx].user_id){
                     display_name = this.props.user_data.users[user_idx].display_name;
                     break;
                 }
             }
-            this.setState({user_id: nextProps.tck.assignee, display_name: display_name})
+            this.setState({value: nextProps.tck.assignee, label: display_name})
         }
         return true;
     }
-    onchange (event, value, tck, set_tck, all_tck, set_all_tck){
-        if (!value){
-            this.setState({user_id: null, display_name: null});
+    onchange (event, option, tck, set_tck, all_tck, set_all_tck){
+        if (!option || !option.value){
+            this.setState({value: null, label: "<Unassigned>"});
             tck.assignee = null;
         }
-        for (var user_idx in this.props.user_data.users){
-            if (value === this.props.user_data.users[user_idx].display_name){
-                this.setState({user_id: this.props.user_data.users[user_idx].user_id});
-                tck.assignee = this.props.user_data.users[user_idx].user_id;
-                break;
-            }
+        else {
+            tck.assignee = option.value;
+            this.setState(option);
         }
-        this.setState({display_name: value});
         put_ticket(tck, set_tck, all_tck, set_all_tck);
     }
     render(){
+        var options = this.props.user_data.users.map(user => {return {label: user.display_name, value: user.user_id}})
+        options.push({label: "<Unassigned>", value: null})
         return (
-            <span className='user-badge'>
-                <ImgIcon img_id={this.state.user_id} />
-                <UserCombo display_name={this.state.display_name} onChange={(event, value) => this.onchange(
+            <div className='flex'>
+                <span className="autocomplete-icon">
+                <ImgIcon img_id={this.state.value} />
+                </span>
+                <Autocomplete
+                  options={options}
+                  value={{label: this.state.label, value: this.state.value}}
+                  isOptionEqualToValue={(option, value) => option.value === value.value}
+                  onChange={(event, value) => this.onchange(
                      event, value, this.props.tck, this.props.set_tck, this.props.all_tck, this.props.set_all_tck)}
-                 user_data={this.props.user_data} />
-            </span>
+                  sx={{ width: '320px' }}
+                  renderInput={(params) => <TextField {...params} label="Assignee" variant="standard"/>}
+                  />
+            </div>
         );
     }
 }
 
-const UserCombo: React.FC<props> = ({
-    display_name,
-    user_data,
-    onChange
-    }) => {
-
-    if (!user_data) return;
-    var options = []
-    for (var user_idx in user_data.users) {
-        options.push(user_data.users[user_idx].display_name)
-    }
-    return (
-        <Autocomplete
-          disablePortal
-          options={options}
-          value={display_name}
-          onChange={onChange}
-          sx={{ width: '320px' }}
-          renderInput={(params) => <TextField {...params} label="Assignee" variant="standard"/>}
-        />
-    );
-}
 
 class ParentBox extends React.Component{
     upValue(props) {
+        var options = props.all_tck.tickets.map((tck) => {
+            if (tck.ticket_id === props.ticket.ticket_id){
+                return {value:null, label: '<Root ticket>'}
+            }
+             return {label: tck.title, value: tck.ticket_id}
+        })
         if (props.all_tck && props.all_tck.tickets){
             for (var tck_idx in props.all_tck.tickets) {
                 var parent_candidate = props.all_tck.tickets[tck_idx]
                 if (parent_candidate.ticket_id === props.ticket.parent){
-                    return {value: parent_candidate.ticket_id, label: parent_candidate.title}
+                    return {value: parent_candidate.ticket_id, label: parent_candidate.title, options: options}
                 }
             }
         }
-        return {value: null, label: '<Root ticket>'}
+
+        return {value: null, label: '<Root ticket>', options: options}
     }
 
     constructor(props) {
         super(props);
-        if (props.all_tck.tickets){
-            var options = props.all_tck.tickets.map((tck) => {
-                if (tck.ticket_id === props.ticket.ticket_id){
-                    return {value:null, label: '<Root ticket>'}
-                }
-                return {label: tck.title, value: tck.ticket_id}
-                })
-        }
-        options.push();
-        this.state = {value: this.upValue(props), options: options}
+        this.state = this.upValue(props)
     }
     shouldComponentUpdate(nextProps) {
-        if(nextProps.ticket.parent !== this.props.ticket.parent) {
-            this.setState({value: this.upValue(nextProps)})
+        if(nextProps.ticket.ticket_id !== this.props.ticket.ticket_id) {
+            this.setState(this.upValue(nextProps))
         }
         return true;
     }
-    updateValue = (value) => {
-        this.setState({value: value});
+    updateValue = (option) => {
+        console.log(option)
+        if (!option){
+            this.setState({value: null, label: '<Root ticket>'})
+        }
+        else {
+            this.setState(option);
+        }
     }
     render() {
         return (
-        <div>
-          <span>Parent: </span>
-          <Select options={this.state.options} styles={customStyles} value={this.state.value}
-            onChange={this.updateValue}
-            onBlur={() => set_parent(this.state.value.value, this.props.ticket, this.props.set_ticket,
-                                     this.props.all_tck, this.props.set_all_tck)}/>
-          {this.state.value.value ? <a href="#" onClick={(event) => {
-              for (var tck_idx in this.props.all_tck.tickets) {
-                  console.log(this.props.all_tck.tickets[tck_idx].ticket_id, this.state.value.value)
-                  if (this.props.all_tck.tickets[tck_idx].ticket_id == this.state.value.value){
-                      this.props.set_ticket(this.props.all_tck.tickets[tck_idx])
-                  }
-              }
-          }}>To parent</a> : ""}
+        <div className="flex">
+          <span className="autocomplete-icon">
+            <ImgIcon img_id={this.state.value} />
+          </span>
+          <Autocomplete
+          options={this.state.options}
+          value={{label: this.state.label, value: this.state.value}}
+          isOptionEqualToValue={(option, value) => option.value === value.value}
+          onChange={(event, option) => {this.updateValue(option);
+                    set_parent(option.value, this.props.ticket, this.props.set_ticket,
+                                     this.props.all_tck, this.props.set_all_tck)}}
+          sx={{ width: '320px' }}
+          renderInput={(params) => <TextField {...params} label="Parent" variant="standard"/>}
+          />
         </div>
         );
     }
 }
+
+
+class OrgBox extends React.Component{
+    upValue(props) {
+        if (props.orgs){
+            var options = props.orgs.map((org_candidate) => {
+                return {label: org_candidate.display_name, value: org_candidate.organization_id}
+            })
+            options.push({value: null, label: '<Private ticket>'})
+            for (var org_idx in props.orgs) {
+                var org_candidate =  props.orgs[org_idx]
+                if (org_candidate.organization_id === props.ticket.organization){
+                    return {value: org_candidate.organization_id, label: org_candidate.display_name, options: options}
+                }
+            }
+        }
+        return {value: null, label: '<Private ticket>', options: options}
+    }
+
+    constructor(props) {
+        super(props);
+        this.state = this.upValue(props)
+    }
+    shouldComponentUpdate(nextProps) {
+        if(nextProps.ticket.ticket_id !== this.props.ticket.ticket_id) {
+            this.setState(this.upValue(nextProps))
+        }
+        return true;
+    }
+    updateValue = (value) => {
+        if (!value){
+            this.setState({value: null, label: '<Private ticket>'})
+        }
+        else {
+            this.setState(value);
+        }
+    }
+    render() {
+        return (
+        <div className="flex">
+          <span className="autocomplete-icon">
+            <ImgIcon img_id={this.state.value} />
+          </span>
+          <Autocomplete
+          options={this.state.options}
+          value={{label: this.state.label, value: this.state.value}}
+          isOptionEqualToValue={(option, value) => option.value === value.value}
+          onChange={(event, option) => {this.updateValue(option);
+                    set_organization(option.value, this.props.ticket, this.props.set_ticket,
+                                     this.props.all_tck, this.props.set_all_tck)}}
+          sx={{ width: '320px' }}
+          renderInput={(params) => <TextField {...params} label="Organization" variant="standard"/>}
+          />
+        </div>
+        );
+    }
+}
+
 
 class DescArea extends React.Component {
     constructor(props) {
@@ -338,7 +389,6 @@ export const PaneLeft: React.FC<Props> = ({
         );
       }
       var sons = []
-      var parents = [];
       for (var tck_idx in all_tck.tickets){
         if(ticket.ticket_id && all_tck.tickets[tck_idx].parent === ticket.ticket_id){
             const son_tck = all_tck.tickets[tck_idx]
@@ -353,6 +403,13 @@ export const PaneLeft: React.FC<Props> = ({
                     </div>
                 </div>
             )
+        }
+      }
+      var owner_name = null
+      console.log(data.users, ticket.owner)
+      for (var user_idx in data.users){
+        if (data.users[user_idx].user_id == ticket.owner){
+            owner_name = data.users[user_idx].display_name
         }
       }
       return (
@@ -376,11 +433,15 @@ export const PaneLeft: React.FC<Props> = ({
           <UserBadge user_data={data} tck={ticket} set_tck={set_ticket}
            all_tck={all_tck} set_all_tck={set_all_tck} />
           </div>
-          <div>
-          <span>Owner: </span>
+          <div className="flex">
+          <span className="autocomplete-icon">
           <ImgIcon img_id={ticket.owner} />
+          </span>
+          <Autocomplete value={owner_name} disabled={true} options={[]} sx={{ width: '320px' }}
+                  renderInput={(params) => <TextField {...params} label="Owner" variant="standard"/>} />
           </div>
         </div>
+        <OrgBox ticket={ticket} set_ticket={set_ticket} all_tck={all_tck} set_all_tck={set_all_tck} orgs={my_profile.org_list} />
         <ParentBox ticket={ticket} set_ticket={set_ticket} all_tck={all_tck} set_all_tck={set_all_tck} />
         <div className="sons-container">
           <button className="add-ticket ticket-row-mini" onClick={() => create_son(ticket, all_tck, set_all_tck, my_profile)}>

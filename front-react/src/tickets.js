@@ -10,6 +10,9 @@ import { ImgIcon } from "./components/imgicon.js"
 const darkTheme = createTheme({
   palette: {
     mode: 'dark',
+    primary:{
+        main: "#388e3c"
+    }
   },
 });
 
